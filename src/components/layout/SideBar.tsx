@@ -48,83 +48,83 @@ const data = {
   navMain: [
     {
       title: "ACADEMIC",
-      url: "#",
+      url: "/dashboard",
       icon: BookOpen,
       items: [
         {
           title: "Dashboard",
-          url: "#",
+          url: "/dashboard",
           icon: LayoutDashboard,
         },
         {
           title: "Course Registration",
-          url: "#",
+          url: "/dashboard/registercourses",
           icon: ClipboardList,
         },
         {
           title: "Attendance",
-          url: "#",
+          url: "/dashboard/attendance",
           icon: CalendarCheck,
         },
         {
           title: "Exams Schedule",
-          url: "#",
+          url: "/dashboard/exams-schedule",
           icon: Clock,
         },
         {
           title: "Assignment",
-          url: "#",
+          url: "/dashboard/assignments",
           icon: FileCheck,
           badge: 3,
         },
         {
           title: "e-Library",
-          url: "#",
+          url: "/dashboard/e-library",
           icon: Book,
         },
         {
           title: "Results and GPA",
-          url: "#",
+          url: "/dashboard/results",
           icon: Award,
         },
       ],
     },
     {
       title: "FINANCE",
-      url: "#",
+      url: "/finance",
       icon: CreditCard,
       items: [
         {
           title: "School Fees",
-          url: "#",
+          url: "/school-fees",
           icon: ShieldCheck,
           badge: "Paid",
         },
         {
           title: "Receipts",
-          url: "#",
+          url: "/receipts",
           icon: FileText,
         },
       ],
     },
     {
       title: "SERVICES",
-      url: "#",
+      url: "/services",
       icon: LifeBuoy,
       items: [
         {
           title: "Hostel",
-          url: "#",
+          url: "/hostel",
           icon: Home,
         },
         {
           title: "Transcript",
-          url: "#",
+          url: "/transcript",
           icon: FileSearch,
         },
         {
           title: "Announcement",
-          url: "#",
+          url: "/announcement",
           icon: Megaphone,
           badge: "4",
         },
