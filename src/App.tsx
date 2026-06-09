@@ -11,6 +11,11 @@ import Assignments, {
 } from "./pages/assignments/Assignments"
 import Library from "./pages/library/Library"
 import SemesterResults from "./pages/results/SemesterResults"
+import FeesDashboard from "./pages/fees/FeesDashboard"
+import Receipts from "./pages/fees/Receipts"
+import HostelAllocation from "./pages/hostel/HostelAllocation"
+import TranscriptRequest from "./pages/results/TranscriptRequest"
+import Announcements from "./pages/announcement/Announcements"
 
 const attendanceCourses = [
   { coursecode: "CS101", progress: 88, percentage: 88 },
@@ -283,6 +288,27 @@ function App() {
           path="/dashboard/results"
           element={<SemesterResults gpaHistory={gpaHistory} />}
         />
+        <Route 
+        path="/finance/school-fees"
+        element={<FeesDashboard />} 
+        />
+        <Route 
+        path="/finance/receipts"
+        element={<Receipts />} 
+        />
+        <Route 
+        path="/services/hostel"
+        element={<HostelAllocation />} 
+        />
+        <Route 
+        path="/services/transcript"
+        element={<TranscriptRequest />} 
+        />
+        <Route 
+        path="/services/announcement"
+        element={<Announcements />} 
+        />
+
         <Route
           path="*"
           element={

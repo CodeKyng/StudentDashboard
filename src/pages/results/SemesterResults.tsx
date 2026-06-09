@@ -127,8 +127,8 @@ function SemesterResults({ gpaHistory }: SemesterResultsProps) {
         <header className="flex h-16 shrink-0 items-center border-b">
           <TopBar />
         </header>
-        <div className="flex">
-          <Table className="w-120">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <Table className="w-full">
             <TableCaption>Semester results and final grades.</TableCaption>
             <TableHeader>
               <TableRow>
@@ -160,10 +160,10 @@ function SemesterResults({ gpaHistory }: SemesterResultsProps) {
               ))}
             </TableBody>
           </Table>
-          <div className="flex w-120 flex-col">
+          <div className="w-full">
             <Card className="rounded-3xl border border-border bg-background p-8 shadow-sm">
               <h2 className="text-lg font-semibold">Cumulative GPA</h2>
-              <h1>{cgpa.toFixed(2)}</h1>
+              <h1 className="text-4xl font-bold">{cgpa.toFixed(2)}</h1>
               <p>{position}</p>
               <p className="text-sm text-muted-foreground">5.0 Scale.</p>
             </Card>

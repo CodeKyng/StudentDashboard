@@ -96,13 +96,13 @@ const data = {
       items: [
         {
           title: "School Fees",
-          url: "/school-fees",
+          url: "/finance/school-fees",
           icon: ShieldCheck,
           badge: "Paid",
         },
         {
           title: "Receipts",
-          url: "/receipts",
+          url: "/finance/receipts",
           icon: FileText,
         },
       ],
@@ -114,17 +114,17 @@ const data = {
       items: [
         {
           title: "Hostel",
-          url: "/hostel",
+          url: "/services/hostel",
           icon: Home,
         },
         {
           title: "Transcript",
-          url: "/transcript",
+          url: "/services/transcript",
           icon: FileSearch,
         },
         {
           title: "Announcement",
-          url: "/announcement",
+          url: "/services/announcement",
           icon: Megaphone,
           badge: "4",
         },
