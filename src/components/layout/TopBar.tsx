@@ -7,7 +7,7 @@ const date = new Date().toLocaleDateString("en-US", {
   day: "numeric",
   year: "numeric",
 })
-function TopBar() {
+function TopBar({ title }: { title?: string }) {
   const { profile } = useDashboardContext()
 
   return (
@@ -17,7 +17,7 @@ function TopBar() {
 
       {/* Middle - Welcome Message (grows on larger screens) */}
       <div className="hidden text-lg font-medium sm:block">
-        Welcome to your dashboard {profile.displayName}
+        {title || `Welcome to your dashboard ${profile.displayName}`}
       </div>
 
       {/* Spacer - takes up remaining space to push right section to the edge */}
