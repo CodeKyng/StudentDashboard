@@ -12,49 +12,7 @@ import {
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { SideBar } from "@/components/layout/SideBar"
 import TopBar from "@/components/layout/TopBar"
-
-const results = [
-  {
-    code: "CS101",
-    course: "Introduction to Computer Science",
-    units: 3,
-    ca: 32,
-    exam: 58,
-    grade: "A",
-  },
-  {
-    code: "MATH201",
-    course: "Calculus II",
-    units: 4,
-    ca: 28,
-    exam: 52,
-    grade: "B",
-  },
-  {
-    code: "PHYS101",
-    course: "General Physics I",
-    units: 4,
-    ca: 26,
-    exam: 45,
-    grade: "C",
-  },
-  {
-    code: "ENG101",
-    course: "Technical Writing",
-    units: 2,
-    ca: 22,
-    exam: 36,
-    grade: "D",
-  },
-  {
-    code: "CS201",
-    course: "Data Structures",
-    units: 3,
-    ca: 30,
-    exam: 40,
-    grade: "F",
-  },
-]
+import { useDashboardContext } from "@/components/Auth/dashboard-context"
 
 const getGradeBadgeClass = (grade: string) => {
   if (grade === "A" || grade === "B") {
@@ -84,26 +42,15 @@ const gradePoints: { [key: string]: number } = {
   F: 0.0,
 }
 
-interface SemesterResultsProps {
-  gpaHistory?: {
-    firstLevelFirstSemester: number
-    firstLevelSecondSemester: number
-    secondLevelFirstSemester: number
-    secondLevelSecondSemester: number
-    thirdLevelFirstSemester: number
-    thirdLevelSecondSemester: number
-    fourthLevelFirstSemester: number
-    fourthLevelSecondSemester: number
-  }
-}
-
-function SemesterResults({ gpaHistory }: SemesterResultsProps) {
+function SemesterResults() {
+  const { data } = useDashboardContext()
+  const { results, gpaHistory } = data
   const totalUnits = results.reduce((sum, result) => sum + result.units, 0)
   const totalGradePoints = results.reduce(
     (sum, result) => sum + (gradePoints[result.grade] || 0) * result.units,
     0
   )
-  const cgpa = totalGradePoints / totalUnits
+  const cgpa = totalUnits > 0 ? totalGradePoints / totalUnits : undefined
 
   const getPosition = (cgpa: number) => {
     if (cgpa > 4.49) {
@@ -118,7 +65,7 @@ function SemesterResults({ gpaHistory }: SemesterResultsProps) {
     return "Third Class"
   }
 
-  const position = getPosition(cgpa)
+  const position = cgpa === undefined ? "Not available" : getPosition(cgpa)
 
   return (
     <SidebarProvider>
@@ -129,7 +76,10 @@ function SemesterResults({ gpaHistory }: SemesterResultsProps) {
         </header>
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <Table className="w-full">
-            <TableCaption>Semester results and final grades.</TableCaption>
+            <TableCaption>
+              {data.currentSemester ?? "Current semester"} results and final
+              grades.
+            </TableCaption>
             <TableHeader>
               <TableRow>
                 <TableHead className="w-auto">Code</TableHead>
@@ -141,6 +91,13 @@ function SemesterResults({ gpaHistory }: SemesterResultsProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
+              {results.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center">
+                    No results are available in Firebase.
+                  </TableCell>
+                </TableRow>
+              )}
               {results.map((result) => (
                 <TableRow key={result.code}>
                   <TableCell className="font-medium">{result.code}</TableCell>
@@ -163,7 +120,9 @@ function SemesterResults({ gpaHistory }: SemesterResultsProps) {
           <div className="w-full">
             <Card className="rounded-3xl border border-border bg-background p-8 shadow-sm">
               <h2 className="text-lg font-semibold">Cumulative GPA</h2>
-              <h1 className="text-4xl font-bold">{cgpa.toFixed(2)}</h1>
+              <h1 className="text-4xl font-bold">
+                {cgpa === undefined ? "—" : cgpa.toFixed(2)}
+              </h1>
               <p>{position}</p>
               <p className="text-sm text-muted-foreground">5.0 Scale.</p>
             </Card>

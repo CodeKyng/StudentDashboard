@@ -1,6 +1,8 @@
 import { SideBar } from "@/components/layout/SideBar"
 import TopBar from "@/components/layout/TopBar"
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { useDashboardContext } from "@/components/Auth/dashboard-context"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -9,7 +11,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import {
   Table,
   TableBody,
@@ -18,57 +21,24 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { CreditCard, Plus } from "lucide-react"
-import { Separator } from "@/components/ui/separator"
-import { Button } from "@/components/ui/button"
-
-// const feesSummary = [
-//   {
-//     label: "Total Paid",
-//     amount: "₦112,500",
-//     description: "Payments completed this academic year",
-//   },
-//   {
-//     label: "Total Due",
-//     amount: "₦37,500",
-//     description: "Remaining fee balance",
-//   },
-//   {
-//     label: "Last Payment",
-//     amount: "₦45,000",
-//     description: "Received on May 15, 2026",
-//   },
-// ]
-
-const paymentRecords = [
-  {
-    session: "2025/2026",
-    level: "100",
-    date: "2026-01-12",
-    rrr: "12345678901",
-    status: "Paid",
-  },
-  {
-    session: "2025/2026",
-    level: "200",
-    date: "2026-05-24",
-    rrr: "98765432109",
-    status: "Unpaid",
-  },
-  {
-    session: "2024/2025",
-    level: "100",
-    date: "2025-11-08",
-    rrr: "45678912300",
-    status: "Paid",
-  },
-]
-
-const session = "2025/2026 Academic Session"
-const level = "Level 100"
-const faculty = "Faculty of Engineering"
+import { CreditCard } from "lucide-react"
 
 function FeesDashboard() {
+  const { data } = useDashboardContext()
+  const formatCurrency = (amount: number | undefined) =>
+    amount === undefined
+      ? "Not provided"
+      : new Intl.NumberFormat(
+          "en-NG",
+          data.currencyCode
+            ? {
+                style: "currency",
+                currency: data.currencyCode,
+                maximumFractionDigits: 2,
+              }
+            : { maximumFractionDigits: 2 }
+        ).format(amount)
+
   return (
     <SidebarProvider>
       <SideBar />
@@ -78,117 +48,126 @@ function FeesDashboard() {
             <TopBar />
           </div>
         </header>
-
-        <main className="p-4">
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <Card className="w-full">
+        <main className="grid gap-4 p-4 xl:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex gap-2">
+                <CreditCard />
+                Payment Due
+                {data.feeStatus && <Badge>{data.feeStatus}</Badge>}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col items-start gap-1 rounded-3xl bg-muted p-4">
+                <h1 className="text-3xl font-bold">
+                  {formatCurrency(data.feesDue)}
+                </h1>
+                <p className="mt-4">
+                  {data.session ?? "Session not provided"}
+                  <br />
+                  {data.level ?? "Level not provided"}
+                  {data.faculty ? ` · ${data.faculty}` : ""}
+                </p>
+              </div>
+              {data.feeItems.length ? (
+                data.feeItems.map((fee) => (
+                  <div key={fee.name}>
+                    <div className="my-6 flex items-center justify-between gap-4">
+                      <p>{fee.name}</p>
+                      <p>{formatCurrency(fee.amount)}</p>
+                    </div>
+                    <Separator />
+                  </div>
+                ))
+              ) : (
+                <p className="mt-6 text-sm text-muted-foreground">
+                  No fee breakdown is available in Firebase.
+                </p>
+              )}
+            </CardContent>
+            <CardFooter>
+              <p className="text-sm text-muted-foreground">
+                Payment processing is not connected yet.
+              </p>
+            </CardFooter>
+          </Card>
+          <div className="grid content-start gap-4">
+            <Card>
               <CardHeader>
-                <CardTitle className="flex gap-2">
-                  <CreditCard />
-                  Payment Due <Badge />
-                </CardTitle>
+                <CardTitle>Payment History</CardTitle>
+                <CardDescription>
+                  Fee transactions and their current status.
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-col items-start gap-1 rounded-3xl bg-muted p-4">
-                  <h1 className="text-3xl font-bold">₦245,000</h1>
-                  <p className="mt-4">
-                    {session} . <br />
-                    {level} . {faculty}
-                  </p>
-                </div>
-                <div className="mt-6 flex items-center justify-between gap-4">
-                  <p>Tuition Fee</p>
-                  <p>₦180,000</p>
-                </div>
-                <Separator className="my-6" />
-                <div className="mt-6 flex items-center justify-between gap-4">
-                  <p>Development Fee</p>
-                  <p>₦30,000</p>
-                </div>
-                <Separator className="my-6" />
-                <div className="mt-6 flex items-center justify-between gap-4">
-                  <p>Library Fee</p>
-                  <p>₦10,000</p>
-                </div>
-                <Separator className="my-6" />
-                <div className="mt-6 flex items-center justify-between gap-4">
-                  <p>Laboratory Fee</p>
-                  <p>₦15,000</p>
-                </div>
-                <Separator className="my-6" />
-                <div className="mt-6 flex items-center justify-between gap-4">
-                  <p>Sports Levy</p>
-                  <p>₦5,000</p>
-                </div>
-                <Separator className="my-6" />
-                <div className="mt-6 flex items-center justify-between gap-4">
-                  <p>Total</p>
-                  <p>₦245,000</p>
-                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Session</TableHead>
+                      <TableHead>Level</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>RRR</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data.paymentRecords.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center">
+                          No payment records are available in Firebase.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {data.paymentRecords.map((record) => (
+                      <TableRow key={`${record.rrr}-${record.date}`}>
+                        <TableCell>{record.session}</TableCell>
+                        <TableCell>{record.level}</TableCell>
+                        <TableCell>{record.date}</TableCell>
+                        <TableCell>{record.rrr}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              record.status === "Paid"
+                                ? "secondary"
+                                : "destructive"
+                            }
+                          >
+                            {record.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </CardContent>
-              <CardFooter className="flex flex-col items-center gap-4">
-                <Button className="p-6">
-                  <CreditCard />
-                  Generate Remita <br /> RRR & PAY
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Scholarships</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {data.scholarships.length ? (
+                  data.scholarships.map((scholarship) => (
+                    <div key={scholarship.title}>
+                      <h3 className="font-medium">{scholarship.title}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {scholarship.description}
+                      </p>
+                      <Badge variant="outline">{scholarship.status}</Badge>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No scholarship records are available in Firebase.
+                  </p>
+                )}
+              </CardContent>
+              <CardFooter>
+                <Button disabled>
+                  Scholarship applications are unavailable
                 </Button>
-                <Button className="p-4">Download Invoice</Button>
               </CardFooter>
             </Card>
-            <div className="w-full">
-              <Card className="w-full rounded-3xl border border-border bg-background p-6 shadow-sm">
-                <CardHeader>
-                  <CardTitle>Payment History</CardTitle>
-                  <CardDescription>
-                    Recent fee transactions and their current status.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pt-2">
-                  <Table className="w-auto">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Session</TableHead>
-                        <TableHead>Level</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>RRR</TableHead>
-                        <TableHead>Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {paymentRecords.map((record) => (
-                        <TableRow key={`${record.rrr}-${record.date}`}>
-                          <TableCell>{record.session}</TableCell>
-                          <TableCell>{record.level}</TableCell>
-                          <TableCell>{record.date}</TableCell>
-                          <TableCell>{record.rrr}</TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={
-                                record.status === "Paid"
-                                  ? "secondary"
-                                  : "destructive"
-                              }
-                            >
-                              {record.status}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader>
-                    <CardTitle>Scholarships</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <p>No active scholarships. Apply for Bursaries below!</p>
-                </CardContent>
-                <CardFooter>
-                    <Button><Plus />Apply for Scholarship</Button>
-                </CardFooter>
-              </Card>
-            </div>
           </div>
         </main>
       </SidebarInset>

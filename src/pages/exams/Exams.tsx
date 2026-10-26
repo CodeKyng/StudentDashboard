@@ -13,22 +13,11 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useDashboardContext } from "@/components/Auth/dashboard-context"
 
-const semester = "2nd Semester 2025/2026"
+function Exams() {
+  const { data } = useDashboardContext()
 
-export interface ExamEntry {
-  course: string
-  date: string
-  time: string
-  hall: string
-  seatNo: string
-}
-
-interface ExamsProps {
-  exams: ExamEntry[]
-}
-
-function Exams({ exams }: ExamsProps) {
   return (
     <SidebarProvider>
       <SideBar />
@@ -43,7 +32,7 @@ function Exams({ exams }: ExamsProps) {
             <CardHeader>
               <CardTitle className="flex gap-2">
                 <Pen size={16} />
-                {semester} Exams Schedule
+                {data.currentSemester ?? "Current semester"} Exams Schedule
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -66,7 +55,14 @@ function Exams({ exams }: ExamsProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {exams.map((exam) => (
+                  {data.exams.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center">
+                        No exam schedule is available in Firebase.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {data.exams.map((exam) => (
                     <TableRow key={`${exam.course}-${exam.date}-${exam.time}`}>
                       <TableCell className="font-medium">
                         {exam.course}

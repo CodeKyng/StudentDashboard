@@ -1,4 +1,5 @@
 import * as React from "react"
+import { Link } from "react-router-dom"
 import {
   Award,
   Book,
@@ -32,7 +33,7 @@ import {
   SidebarMenuSubItem,
   SidebarRail,
 } from "@/components/ui/sidebar"
-import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar"
+import { Avatar, AvatarFallback } from "../ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,9 +43,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu"
+import { useDashboardContext } from "@/components/Auth/dashboard-context"
 
-// This is sample data.
-const data = {
+const navigation = {
   navMain: [
     {
       title: "ACADEMIC",
@@ -58,94 +59,97 @@ const data = {
         },
         {
           title: "Course Registration",
-          url: "/dashboard/registercourses",
+          url: "/registercourses",
           icon: ClipboardList,
         },
         {
           title: "Attendance",
-          url: "/dashboard/attendance",
+          url: "/attendance",
           icon: CalendarCheck,
         },
         {
           title: "Exams Schedule",
-          url: "/dashboard/exams-schedule",
+          url: "/exams-schedule",
           icon: Clock,
         },
         {
           title: "Assignment",
-          url: "/dashboard/assignments",
+          url: "/assignments",
           icon: FileCheck,
-          badge: 3,
+          badge: "assignments",
         },
         {
           title: "e-Library",
-          url: "/dashboard/e-library",
+          url: "/e-library",
           icon: Book,
         },
         {
           title: "Results and GPA",
-          url: "/dashboard/results",
+          url: "/results",
           icon: Award,
         },
       ],
     },
     {
       title: "FINANCE",
-      url: "/finance",
+      url: "/schoolfees",
       icon: CreditCard,
       items: [
         {
           title: "School Fees",
-          url: "/finance/school-fees",
+          url: "/school-fees",
           icon: ShieldCheck,
-          badge: "Paid",
+          badge: "fees",
         },
         {
           title: "Receipts",
-          url: "/finance/receipts",
+          url: "/receipts",
           icon: FileText,
         },
       ],
     },
     {
       title: "SERVICES",
-      url: "/services",
+      url: "/hostel",
       icon: LifeBuoy,
       items: [
         {
           title: "Hostel",
-          url: "/services/hostel",
+          url: "/hostel",
           icon: Home,
         },
         {
           title: "Transcript",
-          url: "/services/transcript",
+          url: "/transcript",
           icon: FileSearch,
         },
         {
           title: "Announcement",
-          url: "/services/announcement",
+          url: "/announcement",
           icon: Megaphone,
-          badge: "4",
+          badge: "announcements",
         },
       ],
     },
   ],
 }
 
-const name = "CodeKyng"
-// const schoolFees = "Paid"
-// const Announcement = 4
-// const assignment = 0
-
 export function SideBar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const { data, profile } = useDashboardContext()
+  const userInitials = profile.displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("")
+
   return (
     <Sidebar {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <a href="#">
+              <Link to="/dashboard">
                 <div className="flex aspect-square size-8 items-center justify-center text-sidebar-primary-foreground">
                   <img src="/unijos_logo.png" alt="Logo" className="size-6" />
                 </div>
@@ -153,7 +157,7 @@ export function SideBar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <span className="font-medium">University of Jos</span>
                   <span className="">University</span>
                 </div>
-              </a>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -161,18 +165,18 @@ export function SideBar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarContent>
         <SidebarGroup>
           <SidebarMenu>
-            {data.navMain.map((item) => (
+            {navigation.navMain.map((item) => (
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton asChild>
-                  <a
-                    href={item.url}
+                  <Link
+                    to={item.url}
                     className="flex items-center gap-3 font-medium"
                   >
                     {item.icon ? (
                       <item.icon className="size-5 text-sidebar-primary-foreground" />
                     ) : null}
                     {item.title}
-                  </a>
+                  </Link>
                 </SidebarMenuButton>
                 {item.items?.length ? (
                   <SidebarMenuSub>
@@ -180,36 +184,40 @@ export function SideBar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       <SidebarMenuSubItem key={item.title}>
                         <SidebarMenuSubButton asChild>
                           <div className="relative flex items-center">
-                            <a
-                              href={item.url}
+                            <Link
+                              to={item.url}
                               className="flex items-center gap-2"
                             >
                               {item.icon ? (
                                 <item.icon className="size-4 text-sidebar-primary-foreground" />
                               ) : null}
                               {item.title}
-                            </a>
-                            {item.badge &&
-                            (item.title === "Assignment"
-                              ? typeof item.badge !== "number" || item.badge > 0
-                              : item.title === "Announcement"
-                                ? true
-                                : item.title === "School Fees"
-                                  ? item.badge === "Paid" ||
-                                    item.badge === "Pending"
-                                  : false) ? (
-                              <SidebarMenuBadge
-                                className={
-                                  item.title === "Assignment" ||
-                                  item.title === "Announcement" ||
-                                  item.title === "School Fees"
-                                    ? "text-destructive-foreground bg-destructive"
-                                    : "bg-blue-600 text-white"
-                                }
-                              >
-                                {item.badge}
-                              </SidebarMenuBadge>
-                            ) : null}
+                            </Link>
+                            {(() => {
+                              const badge =
+                                item.badge === "assignments"
+                                  ? data.assignments.filter(
+                                      (assignment) =>
+                                        assignment.status === "Pending"
+                                    ).length
+                                  : item.badge === "fees"
+                                    ? data.feeStatus
+                                    : item.badge === "announcements"
+                                      ? data.unreadAnnouncementCount
+                                      : undefined
+                              if (
+                                badge === undefined ||
+                                badge === 0 ||
+                                badge === ""
+                              ) {
+                                return null
+                              }
+                              return (
+                                <SidebarMenuBadge className="text-destructive-foreground bg-destructive">
+                                  {badge}
+                                </SidebarMenuBadge>
+                              )
+                            })()}
                           </div>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
@@ -228,10 +236,9 @@ export function SideBar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton>
                   <Avatar>
-                    <AvatarImage src="https://github.com/shadcn.png" />
-                    <AvatarFallback>UserName</AvatarFallback>
+                    <AvatarFallback>{userInitials || "U"}</AvatarFallback>
                   </Avatar>{" "}
-                  {name}
+                  {profile.displayName}
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent>

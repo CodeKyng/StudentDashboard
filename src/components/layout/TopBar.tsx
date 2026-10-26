@@ -1,13 +1,15 @@
 import { Bell, Search, Settings } from "lucide-react"
 import { SidebarTrigger } from "../ui/sidebar"
+import { useDashboardContext } from "@/components/Auth/dashboard-context"
 
-const name = "CodeKyng"
 const date = new Date().toLocaleDateString("en-US", {
   month: "long",
   day: "numeric",
   year: "numeric",
 })
 function TopBar() {
+  const { profile } = useDashboardContext()
+
   return (
     <nav className="flex items-center gap-4 px-4 py-3 pr-6 md:px-6 md:py-4 md:pr-8 lg:px-8 lg:pr-12">
       {/* Left - Sidebar Trigger */}
@@ -15,7 +17,7 @@ function TopBar() {
 
       {/* Middle - Welcome Message (grows on larger screens) */}
       <div className="hidden text-lg font-medium sm:block">
-        Welcome to your dashboard {name}
+        Welcome to your dashboard {profile.displayName}
       </div>
 
       {/* Spacer - takes up remaining space to push right section to the edge */}

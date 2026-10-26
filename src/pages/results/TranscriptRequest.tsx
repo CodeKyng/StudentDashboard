@@ -6,50 +6,11 @@ import { Check, CheckCheck, Plus, Speaker } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-
-const title = "Library Clearance"
-const description = "Cleared - No outstanding books"
-const date = "24/June/2026"
-
-const transcriptRequestMeta = [
-  {
-    label: "Transcript type",
-    value: "Official Academic Transcript",
-  },
-  {
-    label: "Delivery method",
-    value: "Email copy or campus pickup",
-  },
-  {
-    label: "Estimated processing",
-    value: "5-10 working days",
-  },
-  {
-    label: "Request fee",
-    value: "₦3,000",
-  },
-]
-
-const previousRequestInfo = [
-  {
-    label: "Request ID",
-    value: "TR-2026-0984",
-  },
-  {
-    label: "Status",
-    value: "Collected at campus registry",
-  },
-  {
-    label: "Collection point",
-    value: "Registrar's Office, Block A",
-  },
-  {
-    label: "Follow-up",
-    value: "Allow 24 hours for email delivery confirmation.",
-  },
-]
+import { useDashboardContext } from "@/components/Auth/dashboard-context"
 
 function TranscriptRequest() {
+  const { data } = useDashboardContext()
+
   return (
     <SidebarProvider>
       <SideBar />
@@ -70,24 +31,34 @@ function TranscriptRequest() {
               <CardContent className="flex flex-col items-center justify-center">
                 <p className="max-w-xl text-center text-sm text-slate-600">
                   Complete all clearance steps before submitting your transcript
-                  request. Processing takes 5-10 working days. Make sure your
-                  financial, library, and departmental clearances are up to date
-                  for faster approval.
+                  request. Make sure your financial, library, and departmental
+                  clearances are up to date.
                 </p>
                 <Separator className="my-6 w-full" />
                 <div className="flex w-full flex-col gap-4">
-                  <div className="flex items-start gap-3">
-                    <Check className="mt-1 text-green-600" />
-                    <div className="flex flex-col">
-                      <span className="font-medium">{title}</span>
-                      <span className="text-sm text-slate-600">
-                        {description}
-                      </span>
+                  {data.transcriptClearance ? (
+                    <div className="flex items-start gap-3">
+                      <Check className="mt-1 text-green-600" />
+                      <div className="flex flex-col">
+                        <span className="font-medium">
+                          {data.transcriptClearance.title}
+                        </span>
+                        <span className="text-sm text-slate-600">
+                          {data.transcriptClearance.description}
+                        </span>
+                        <span className="text-sm text-slate-600">
+                          {data.transcriptClearance.date}
+                        </span>
+                      </div>
+                      <CheckCheck className="ml-auto text-green-600" />
                     </div>
-                    <CheckCheck className="ml-auto text-green-600" />
-                  </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Clearance information is not available in Firebase.
+                    </p>
+                  )}
                   <div className="grid w-full gap-2 sm:grid-cols-2">
-                    {transcriptRequestMeta.map((item) => (
+                    {data.transcriptRequestMeta.map((item) => (
                       <div key={item.label}>
                         <p className="text-xs tracking-[0.2em] text-slate-500 uppercase">
                           {item.label}
@@ -95,13 +66,19 @@ function TranscriptRequest() {
                         <p className="font-medium">{item.value}</p>
                       </div>
                     ))}
+                    {data.transcriptRequestMeta.length === 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        Transcript request details are not available in
+                        Firebase.
+                      </p>
+                    )}
                   </div>
                 </div>
               </CardContent>
               <CardFooter className="flex w-full flex-col items-center justify-center gap-3">
-                <Button>
+                <Button disabled>
                   <Plus />
-                  Submit Transcript Request
+                  Transcript requests are unavailable
                 </Button>
                 <p className="text-xs text-slate-500">
                   Note: Choose the pickup option during request submission if
@@ -112,23 +89,32 @@ function TranscriptRequest() {
             <Card className="w-full">
               <CardHeader>Previous Request</CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <h4 className="text-lg font-semibold">
-                    Transcript request summary
-                  </h4>
-                  <p className="text-sm text-slate-600">
-                    Submitted {date} · Official copy
+                {data.previousTranscriptRequest ? (
+                  <>
+                    <div>
+                      <h4 className="text-lg font-semibold">
+                        Transcript request summary
+                      </h4>
+                      <p className="text-sm text-slate-600">
+                        Submitted {data.previousTranscriptRequest.date} ·{" "}
+                        {data.previousTranscriptRequest.type}
+                      </p>
+                    </div>
+                    <div className="grid gap-2 text-sm text-slate-700">
+                      {data.previousTranscriptRequest.info.map((item) => (
+                        <p key={item.label}>
+                          <span className="font-medium">{item.label}:</span>{" "}
+                          {item.value}
+                        </p>
+                      ))}
+                    </div>
+                    <Badge>{data.previousTranscriptRequest.status}</Badge>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No previous transcript request is available in Firebase.
                   </p>
-                </div>
-                <div className="grid gap-2 text-sm text-slate-700">
-                  {previousRequestInfo.map((item) => (
-                    <p key={item.label}>
-                      <span className="font-medium">{item.label}:</span>{" "}
-                      {item.value}
-                    </p>
-                  ))}
-                </div>
-                <Badge>Collected</Badge>
+                )}
               </CardContent>
               <CardFooter className="text-sm text-slate-600">
                 For enquiries: <br />

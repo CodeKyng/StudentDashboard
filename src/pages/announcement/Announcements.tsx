@@ -3,29 +3,11 @@ import TopBar from "@/components/layout/TopBar"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-
-const announcements = [
-  {
-    id: "ann-1",
-    source: "Registry",
-    dateCreated: "09 June 2026",
-    title: "Semester Registration Deadline Extended",
-    description:
-      "The registration portal closing date has been extended to June 20. Please complete your course registration before the new deadline.",
-    badge: "Important",
-  },
-  {
-    id: "ann-2",
-    source: "Library",
-    dateCreated: "08 June 2026",
-    title: "Library Resource Access Update",
-    description:
-      "New online resources have been added to the university library portal. Check your student account for access instructions and borrowing policies.",
-    badge: "Update",
-  },
-]
+import { useDashboardContext } from "@/components/Auth/dashboard-context"
 
 function Announcements() {
+  const { data } = useDashboardContext()
+
   return (
     <SidebarProvider>
       <SideBar />
@@ -38,10 +20,15 @@ function Announcements() {
 
         <main className="p-4">
           <div className="grid gap-4">
-            {announcements.map((announcement) => (
+            {data.announcements.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                No announcements are available in Firebase.
+              </p>
+            )}
+            {data.announcements.map((announcement) => (
               <Card
                 key={announcement.id}
-                className="flex flex-col items-center justify-center h-40"
+                className="flex h-40 flex-col items-center justify-center"
               >
                 <CardHeader>
                   <CardTitle className="flex w-full items-center justify-between gap-3">

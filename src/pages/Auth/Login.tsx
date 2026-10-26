@@ -11,11 +11,11 @@ export default function LoginPage() {
             aria-label="Home"
             className="flex items-center gap-2 font-medium"
           >
-            <div className="flex size-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
+            <div className="flex size-6 items-center justify-center rounded-md text-primary-foreground">
               <img
                 src="/unijos_logo.png"
                 alt="UNIJOS Logo"
-                className="h-4 w-4"
+                className="h-6 w-6"
               />
             </div>
             Unijos

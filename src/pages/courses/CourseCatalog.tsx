@@ -1,12 +1,7 @@
 import { useState } from "react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-} from "@/components/ui/card"
+import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import {
   Select,
   SelectItem,
@@ -19,26 +14,28 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowLeft, BadgeCheck, Check, Layers } from "lucide-react"
 
-const maxUnits = 18
+import type { Course } from "@/lib/dashboard-data"
 
-export interface Course {
-  code: string
-  department: string
-  name: string
-  description: string
-  prerequisites: string[]
-  units: number
-  semester: string
-}
+const maxUnits = 18
 
 interface CourseCatalogProps {
   courses: Course[]
+  registrationEligible?: boolean
 }
 
-function CourseCatalog({ courses }: CourseCatalogProps) {
+function CourseCatalog({ courses, registrationEligible }: CourseCatalogProps) {
   const [selectedCourses, setSelectedCourses] = useState<Set<string>>(new Set())
-  const [selectedDepartment, setSelectedDepartment] =
-    useState<string>("electrical")
+  const [selectedDepartment, setSelectedDepartment] = useState<string>(
+    courses[0]?.department ?? ""
+  )
+  const departments = Array.from(
+    new Map(
+      courses.map(
+        (course) => [course.department, course.departmentName] as const
+      )
+    ),
+    ([value, label]) => ({ value, label })
+  )
 
   const handleCourseClick = (courseCode: string) => {
     const newSelected = new Set(selectedCourses)
@@ -69,15 +66,29 @@ function CourseCatalog({ courses }: CourseCatalogProps) {
       </TabsList>
       <TabsContent value="isEligible">
         <Card className="w-full">
-          <CardHeader>
-          </CardHeader>
+          <CardHeader></CardHeader>
           <CardContent>
-            <Alert className="flex alert:border-emerald-200 alert:bg-emerald-50">
-              <AlertDescription className="flex items-center gap-2 alert-description:text-emerald-600">
-                <BadgeCheck />
+            <Alert
+              className={`flex ${
+                registrationEligible
+                  ? "alert:border-emerald-200 alert:bg-emerald-50"
+                  : "alert:border-amber-200 alert:bg-amber-50"
+              }`}
+            >
+              <AlertDescription
+                className={`flex items-center gap-2 ${
+                  registrationEligible
+                    ? "alert-description:text-emerald-600"
+                    : "alert-description:text-amber-700"
+                }`}
+              >
+                {registrationEligible && <BadgeCheck />}
                 <span>
-                  Eligibility confirmed. Fees cleared for last semester. Select
-                  up to {maxUnits} units.
+                  {registrationEligible === undefined
+                    ? "Registration eligibility is not available in Firebase."
+                    : registrationEligible
+                      ? `Eligibility confirmed. Select up to ${maxUnits} units.`
+                      : "Course registration is not currently available for this account."}
                 </span>
               </AlertDescription>
             </Alert>
@@ -95,18 +106,15 @@ function CourseCatalog({ courses }: CourseCatalogProps) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    <SelectLabel>Engineering Departments</SelectLabel>
-                    <SelectItem value="electrical">
-                      Electrical Engineering
-                    </SelectItem>
-                    <SelectItem value="civil">Civil Engineering</SelectItem>
-                    <SelectItem value="mechanical">
-                      Mechanical Engineering
-                    </SelectItem>
-                    <SelectItem value="mining">Mining Engineering</SelectItem>
-                    <SelectItem value="computer">
-                      Computer Engineering
-                    </SelectItem>
+                    <SelectLabel>Departments</SelectLabel>
+                    {departments.map((department) => (
+                      <SelectItem
+                        key={department.value}
+                        value={department.value}
+                      >
+                        {department.label}
+                      </SelectItem>
+                    ))}
                   </SelectGroup>
                 </SelectContent>
               </Select>
@@ -119,10 +127,16 @@ function CourseCatalog({ courses }: CourseCatalogProps) {
           </CardContent>
           <CardFooter className="flex h-auto w-full flex-col gap-4">
             <div className="grid w-full grid-cols-2 gap-2">
+              {filteredCourses.length === 0 && (
+                <p className="col-span-2 text-sm text-muted-foreground">
+                  No courses are available in Firebase.
+                </p>
+              )}
               {filteredCourses.map((course) => (
                 <Button
                   key={course.code}
                   onClick={() => handleCourseClick(course.code)}
+                  disabled={registrationEligible !== true}
                   variant={
                     selectedCourses.has(course.code) ? "default" : "secondary"
                   }
@@ -150,7 +164,7 @@ function CourseCatalog({ courses }: CourseCatalogProps) {
               <Button variant="outline" className="w-1/2">
                 <ArrowLeft className="size-4" /> Back
               </Button>
-              <Button className="w-1/2">
+              <Button className="w-1/2" disabled>
                 Continue to Review <Check className="size-4" />
               </Button>
             </div>
@@ -158,13 +172,16 @@ function CourseCatalog({ courses }: CourseCatalogProps) {
         </Card>
       </TabsContent>
       <TabsContent value="downloadForm">
-        <div className="flex flex-col h-64 w-full items-center justify-center rounded-md border bg-secondary">
-          <p className="text-sm text-muted-foreground gap-2">
-            Do you want to download the course registration form for the selected courses?<br /> This form will be used for final submission and approval by the department.{" "}
+        <div className="flex h-64 w-full flex-col items-center justify-center rounded-md border bg-secondary">
+          <p className="gap-2 text-sm text-muted-foreground">
+            Do you want to download the course registration form for the
+            selected courses?
+            <br /> This form will be used for final submission and approval by
+            the department.{" "}
           </p>
-          <Button variant="outline" className="gap-2 mt-4">
-              Download Form
-            </Button>
+          <Button variant="outline" className="mt-4 gap-2" disabled>
+            Download Form
+          </Button>
         </div>
       </TabsContent>
     </Tabs>

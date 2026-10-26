@@ -1,15 +1,12 @@
 import { SideBar } from "@/components/layout/SideBar"
 import TopBar from "@/components/layout/TopBar"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
-import {
-    Card,
-  CardContent,
-} from "@/components/ui/card"
-import { Speaker } from "lucide-react"
-
-
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useDashboardContext } from "@/components/Auth/dashboard-context"
 
 function HostelAllocation() {
+  const { data } = useDashboardContext()
+
   return (
     <SidebarProvider>
       <SideBar />
@@ -21,13 +18,43 @@ function HostelAllocation() {
         </header>
 
         <main className="p-4">
-          <Card className="flex flex-col items-center justify-center ">
-            <CardContent className="flex flex-col items-center justify-center " >
-                <Speaker className="mt-2 mb-2" />
-                <h1 className="mt-2 mb-2">Hostel</h1>
-                <p className="mt-2 mb-2">
-                    This section is available in full build
+          <Card className="flex flex-col items-center justify-center">
+            <CardHeader>
+              <CardTitle>Hostel Allocation</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {data.hostelAssignment ? (
+                <dl className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <dt className="text-sm text-muted-foreground">Hostel</dt>
+                    <dd className="font-medium">
+                      {data.hostelAssignment.hostel}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm text-muted-foreground">Room</dt>
+                    <dd className="font-medium">
+                      {data.hostelAssignment.room}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm text-muted-foreground">Session</dt>
+                    <dd className="font-medium">
+                      {data.hostelAssignment.session}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm text-muted-foreground">Status</dt>
+                    <dd className="font-medium">
+                      {data.hostelAssignment.status}
+                    </dd>
+                  </div>
+                </dl>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No hostel allocation is available in Firebase.
                 </p>
+              )}
             </CardContent>
           </Card>
         </main>

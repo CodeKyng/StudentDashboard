@@ -3,8 +3,11 @@ import TopBar from "@/components/layout/TopBar"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Satellite } from "lucide-react"
+import { useDashboardContext } from "@/components/Auth/dashboard-context"
 
 function Library() {
+  const { data } = useDashboardContext()
+
   return (
     <SidebarProvider>
       <SideBar />
@@ -22,13 +25,34 @@ function Library() {
                 Library
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Welcome to the Library! Here you can access a wide range of
-                academic resources, including e-books, research papers, and
-                journals. Use the search bar to find materials related to your
-                courses and research interests. Happy studying!
-              </p>
+            <CardContent className="space-y-3">
+              {data.libraryResources.length ? (
+                data.libraryResources.map((resource) => (
+                  <article
+                    key={`${resource.title}-${resource.author}`}
+                    className="rounded-md border p-4"
+                  >
+                    <h2 className="font-semibold">{resource.title}</h2>
+                    <p className="text-sm text-muted-foreground">
+                      {resource.author} · {resource.category}
+                    </p>
+                    {/^https?:\/\//i.test(resource.url) && (
+                      <a
+                        href={resource.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-2 inline-block text-sm text-primary underline"
+                      >
+                        Open resource
+                      </a>
+                    )}
+                  </article>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No library resources are available in Firebase.
+                </p>
+              )}
             </CardContent>
           </Card>
         </main>

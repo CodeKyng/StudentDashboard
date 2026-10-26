@@ -14,22 +14,10 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useDashboardContext } from "@/components/Auth/dashboard-context"
 
-const semester = "2nd Semester 2025/2026"
-
-export interface AssignmentEntry {
-  course: string
-  title: string
-  dueDate: string
-  status: "Submitted" | "Overdue" | "Pending"
-  score: string
-}
-
-interface AssignmentsProps {
-  assignments: AssignmentEntry[]
-}
-
-function Assignments({ assignments }: AssignmentsProps) {
+function Assignments() {
+  const { data } = useDashboardContext()
   const getStatusVariant = (status: string) => {
     switch (status) {
       case "Submitted":
@@ -62,7 +50,7 @@ function Assignments({ assignments }: AssignmentsProps) {
             <CardHeader>
               <CardTitle className="flex gap-2">
                 <Pen size={16} />
-                {semester} Assignments
+                {data.currentSemester ?? "Current semester"} Assignments
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -85,7 +73,14 @@ function Assignments({ assignments }: AssignmentsProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {assignments.map((assignment) => (
+                  {data.assignments.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center">
+                        No assignments are available in Firebase.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {data.assignments.map((assignment) => (
                     <TableRow key={`${assignment.course}-${assignment.title}`}>
                       <TableCell className="font-medium">
                         {assignment.course}
