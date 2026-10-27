@@ -35,6 +35,11 @@ export function SignupForm({
     const password = String(formData.get("password"))
     const confirmPassword = String(formData.get("confirm-password"))
 
+    if (!displayName) {
+      setError("Enter your full name.")
+      return
+    }
+
     if (password.length < 8) {
       setError("Your password must be at least 8 characters long.")
       return
@@ -154,9 +159,16 @@ export function SignupForm({
           </FieldDescription>
         </Field>
         {error && (
-          <p className="text-sm text-destructive" role="alert">
-            {error}
-          </p>
+          <div className="space-y-1" role="alert">
+            <p className="text-sm text-destructive">{error}</p>
+            {error.includes("already exists") && (
+              <p className="text-sm text-muted-foreground">
+                <Link to="/login" className="underline underline-offset-4">
+                  Go to Sign in
+                </Link>
+              </p>
+            )}
+          </div>
         )}
         <Field>
           <Button type="submit" disabled={isSubmitting}>

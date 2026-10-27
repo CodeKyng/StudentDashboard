@@ -22,6 +22,21 @@ export interface UserProfile {
   role: UserRole
 }
 
+/** Thrown when Auth succeeds but the Firestore profile document is missing. */
+export class IncompleteProfileError extends Error {
+  readonly uid: string
+  readonly email: string
+
+  constructor(uid: string, email: string) {
+    super(
+      "Your account exists but profile setup was never completed. Finish signup or contact an administrator."
+    )
+    this.name = "IncompleteProfileError"
+    this.uid = uid
+    this.email = email
+  }
+}
+
 function isUserRole(role: unknown): role is UserRole {
   return (userRoles as readonly unknown[]).includes(role)
 }
@@ -53,6 +68,11 @@ async function signOutAfterFailure(originalError: unknown): Promise<void> {
   }
 }
 
+/**
+ * Create a new account + Firestore profile.
+ * If the email is already registered, throws a clear email-already-in-use error
+ * (no silent sign-in attempt that can produce a confusing wrong-password message).
+ */
 export async function registerWithEmail(
   email: string,
   password: string,
@@ -60,51 +80,30 @@ export async function registerWithEmail(
   role: SelfAssignableRole
 ): Promise<User> {
   let user: User
-  let isRecoveringAccount = false
 
   try {
-    const credential = await createUserWithEmailAndPassword(auth, email, password)
+    const credential = await createUserWithEmailAndPassword(
+      auth,
+      email,
+      password
+    )
     user = credential.user
   } catch (error) {
-    if (
-      !(error instanceof FirebaseError) ||
-      error.code !== "auth/email-already-in-use"
-    ) {
-      throw error
-    }
-
-    const credential = await signInWithEmailAndPassword(auth, email, password)
-    user = credential.user
-    isRecoveringAccount = true
-
-    let existingProfile: UserProfile | null
-    try {
-      existingProfile = await getUserProfile(user.uid)
-    } catch (profileError) {
-      await signOutAfterFailure(profileError)
-      throw profileError
-    }
-
-    if (existingProfile) {
-      await signOutAfterFailure(error)
-      throw error
-    }
+    // Do not attempt password recovery here — it turns email-already-in-use
+    // into "incorrect password" and confuses users.
+    throw error
   }
 
   try {
     await saveUserProfile(user, displayName, role)
   } catch (profileError) {
-    if (isRecoveringAccount) {
-      await signOutAfterFailure(profileError)
-      throw profileError
-    }
-
+    // Best-effort cleanup so the user can retry signup with the same email.
     try {
       await deleteUser(user)
     } catch (cleanupError) {
       throw new AggregateError(
         [profileError, cleanupError],
-        "Your account was created, but profile setup failed. Retry signup with the same details after the connection is restored.",
+        "Your account was created, but profile setup failed. Delete the user in Firebase Authentication (or use Sign in if the password is correct) and try again.",
         { cause: cleanupError }
       )
     }
@@ -113,6 +112,29 @@ export async function registerWithEmail(
   }
 
   return user
+}
+
+/**
+ * Complete profile for an Auth user that has no Firestore document yet.
+ * Call this after a successful sign-in that raised IncompleteProfileError,
+ * while the user is still signed in.
+ */
+export async function completeIncompleteProfile(
+  displayName: string,
+  role: SelfAssignableRole
+): Promise<UserProfile> {
+  const user = auth.currentUser
+  if (!user || !user.email) {
+    throw new Error("You must be signed in to complete your profile.")
+  }
+
+  await saveUserProfile(user, displayName, role)
+
+  const profile = await getUserProfile(user.uid)
+  if (!profile) {
+    throw new Error("Profile was written but could not be read back. Check Firestore rules.")
+  }
+  return profile
 }
 
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
@@ -153,14 +175,12 @@ export async function signInWithEmail(
 
   if (profile) return profile
 
-  await signOutAfterFailure(
-    new Error(
-      "This account does not have a valid profile. Please contact your administrator."
-    )
-  )
-  throw new Error(
-    "This account does not have a valid profile. Please contact your administrator."
-  )
+  // Keep the session so the UI can offer "complete profile" without another password entry.
+  throw new IncompleteProfileError(user.uid, user.email ?? email)
+}
+
+export async function signOutUser(): Promise<void> {
+  await signOut(auth)
 }
 
 function findFirebaseError(error: unknown): FirebaseError | null {
@@ -181,6 +201,10 @@ function findFirebaseError(error: unknown): FirebaseError | null {
 }
 
 export function getAuthErrorMessage(error: unknown): string {
+  if (error instanceof IncompleteProfileError) {
+    return error.message
+  }
+
   const firebaseError = findFirebaseError(error)
   if (firebaseError) {
     switch (firebaseError.code) {
@@ -214,7 +238,7 @@ export function getAuthErrorMessage(error: unknown): string {
       case "auth/user-disabled":
         return "This account has been disabled. Contact your administrator."
       case "permission-denied":
-        return "Your profile could not be accessed. Verify that Firestore is enabled and its security rules are deployed."
+        return "Your profile could not be saved or read. Deploy the Firestore security rules from this repository (firebase deploy --only firestore:rules)."
       case "unauthenticated":
         return "Your Firebase session expired. Sign in again."
       case "failed-precondition":

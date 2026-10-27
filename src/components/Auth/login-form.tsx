@@ -9,7 +9,14 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { getAuthErrorMessage, signInWithEmail } from "@/lib/auth"
+import {
+  IncompleteProfileError,
+  completeIncompleteProfile,
+  getAuthErrorMessage,
+  signInWithEmail,
+  signOutUser,
+  type SelfAssignableRole,
+} from "@/lib/auth"
 import { cn } from "@/lib/utils"
 
 export function LoginForm({
@@ -20,6 +27,9 @@ export function LoginForm({
   const location = useLocation()
   const [error, setError] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [needsProfile, setNeedsProfile] = useState(false)
+  const [displayName, setDisplayName] = useState("")
+  const [role, setRole] = useState<SelfAssignableRole>("Student")
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -37,10 +47,123 @@ export function LoginForm({
         replace: true,
       })
     } catch (submitError) {
-      setError(getAuthErrorMessage(submitError))
+      if (submitError instanceof IncompleteProfileError) {
+        setNeedsProfile(true)
+        setError("")
+        setDisplayName("")
+      } else {
+        setError(getAuthErrorMessage(submitError))
+      }
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  async function handleCompleteProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError("")
+
+    const name = displayName.trim()
+    if (!name) {
+      setError("Enter your full name to finish setup.")
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      await completeIncompleteProfile(name, role)
+      const from = location.state?.from?.pathname
+      navigate(typeof from === "string" ? from : "/dashboard", {
+        replace: true,
+      })
+    } catch (completeError) {
+      setError(getAuthErrorMessage(completeError))
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function handleCancelComplete() {
+    setIsSubmitting(true)
+    try {
+      await signOutUser()
+    } finally {
+      setNeedsProfile(false)
+      setError("")
+      setIsSubmitting(false)
+    }
+  }
+
+  if (needsProfile) {
+    return (
+      <form
+        className={cn("flex flex-col gap-6", className)}
+        onSubmit={handleCompleteProfile}
+        {...props}
+      >
+        <FieldGroup>
+          <div className="flex flex-col items-center gap-1 text-center">
+            <h1 className="text-2xl font-bold">Finish account setup</h1>
+            <p className="text-sm text-balance text-muted-foreground">
+              Your login worked, but the profile document is missing. Complete
+              the fields below to continue.
+            </p>
+          </div>
+          <Field>
+            <FieldLabel htmlFor="complete-name">Full Name</FieldLabel>
+            <Input
+              id="complete-name"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              type="text"
+              placeholder="John Doe"
+              required
+              autoComplete="name"
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="complete-role">Account type</FieldLabel>
+            <select
+              id="complete-role"
+              value={role}
+              onChange={(event) => {
+                const value = event.target.value
+                if (
+                  value === "Staff" ||
+                  value === "Student" ||
+                  value === "Parent"
+                ) {
+                  setRole(value)
+                }
+              }}
+              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <option value="Student">Student</option>
+              <option value="Staff">Staff</option>
+              <option value="Parent">Parent</option>
+            </select>
+          </Field>
+          {error && (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          )}
+          <Field className="gap-2">
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Saving profile..." : "Complete setup"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isSubmitting}
+              onClick={handleCancelComplete}
+            >
+              Cancel and sign out
+            </Button>
+          </Field>
+        </FieldGroup>
+      </form>
+    )
   }
 
   return (
