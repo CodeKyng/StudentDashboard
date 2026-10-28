@@ -17,6 +17,7 @@ import {
   signOutUser,
   type SelfAssignableRole,
 } from "@/lib/auth"
+import { homePathForRole, pathForRole } from "@/lib/roles"
 import { cn } from "@/lib/utils"
 
 export function LoginForm({
@@ -41,9 +42,9 @@ export function LoginForm({
     const password = String(formData.get("password"))
 
     try {
-      await signInWithEmail(email, password)
+      const profile = await signInWithEmail(email, password)
       const from = location.state?.from?.pathname
-      navigate(typeof from === "string" ? from : "/dashboard", {
+      navigate(pathForRole(profile.role, typeof from === "string" ? from : undefined), {
         replace: true,
       })
     } catch (submitError) {
@@ -71,11 +72,8 @@ export function LoginForm({
 
     setIsSubmitting(true)
     try {
-      await completeIncompleteProfile(name, role)
-      const from = location.state?.from?.pathname
-      navigate(typeof from === "string" ? from : "/dashboard", {
-        replace: true,
-      })
+      const profile = await completeIncompleteProfile(name, role)
+      navigate(homePathForRole(profile.role), { replace: true })
     } catch (completeError) {
       setError(getAuthErrorMessage(completeError))
     } finally {
