@@ -14,6 +14,7 @@ import {
   registerWithEmail,
   type SelfAssignableRole,
 } from "@/lib/auth"
+import { homePathForRole } from "@/lib/roles"
 import { cn } from "@/lib/utils"
 
 export function SignupForm({
@@ -53,7 +54,7 @@ export function SignupForm({
     setIsSubmitting(true)
     try {
       await registerWithEmail(email, password, displayName, role)
-      navigate("/dashboard", { replace: true })
+      navigate(homePathForRole(role), { replace: true })
     } catch (submitError) {
       setError(getAuthErrorMessage(submitError))
     } finally {
