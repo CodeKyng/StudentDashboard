@@ -2,9 +2,28 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isOperator() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDoc().role in ['Admin', 'Staff'];
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
     match /users/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow create: if request.auth != null
+      allow read: if isOwner(userId) || isOperator();
+
+      allow create: if signedIn()
         && request.auth.uid == userId
         && request.resource.data.keys().hasAll([
           'uid',
@@ -24,12 +43,14 @@ service cloud.firestore {
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.role in ['Staff', 'Student', 'Parent']
         && request.resource.data.createdAt == request.time;
+
       allow update, delete: if false;
     }
 
     match /dashboardData/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if false;
+      allow read: if isOwner(userId) || isOperator();
+      allow create, update: if isOperator();
+      allow delete: if false;
     }
   }
 }

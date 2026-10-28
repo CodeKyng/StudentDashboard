@@ -1,6 +1,8 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom"
 
 import { RequireAuth } from "./components/Auth/RequireAuth"
+import { RequireRole } from "./components/Auth/RequireRole"
+import { AdminShell } from "./components/admin/AdminShell"
 import Announcements from "./pages/announcement/Announcements"
 import Assignments from "./pages/assignments/Assignments"
 import AttendanceView from "./pages/attendance/AttendanceView"
@@ -16,6 +18,20 @@ import Home from "./pages/public/Home"
 import SemesterResults from "./pages/results/SemesterResults"
 import TranscriptRequest from "./pages/results/TranscriptRequest"
 import StudentDashboard from "./pages/dashboard/StudentDashboard"
+import AdminDashboard from "./pages/admin/AdminDashboard"
+import AdminStudents from "./pages/admin/AdminStudents"
+import AdminProfile from "./pages/admin/AdminProfile"
+import AdminCourses from "./pages/admin/AdminCourses"
+import AdminAttendance from "./pages/admin/AdminAttendance"
+import AdminExams from "./pages/admin/AdminExams"
+import AdminAssignments from "./pages/admin/AdminAssignments"
+import AdminResults from "./pages/admin/AdminResults"
+import AdminFees from "./pages/admin/AdminFees"
+import AdminReceipts from "./pages/admin/AdminReceipts"
+import AdminHostel from "./pages/admin/AdminHostel"
+import AdminLibrary from "./pages/admin/AdminLibrary"
+import AdminTranscript from "./pages/admin/AdminTranscript"
+import AdminAnnouncements from "./pages/admin/AdminAnnouncements"
 
 function App() {
   return (
@@ -24,6 +40,7 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+
         <Route element={<RequireAuth />}>
           <Route path="/dashboard" element={<StudentDashboard />} />
           <Route path="/registercourses" element={<CourseRegistration />} />
@@ -37,12 +54,32 @@ function App() {
           <Route path="/hostel" element={<HostelAllocation />} />
           <Route path="/transcript" element={<TranscriptRequest />} />
           <Route path="/announcement" element={<Announcements />} />
+
+          <Route element={<RequireRole allow={["Admin", "Staff"]} />}>
+            <Route path="/admin" element={<AdminShell />}>
+              <Route index element={<AdminDashboard />} />
+              <Route path="students" element={<AdminStudents />} />
+              <Route path="profile" element={<AdminProfile />} />
+              <Route path="courses" element={<AdminCourses />} />
+              <Route path="attendance" element={<AdminAttendance />} />
+              <Route path="exams" element={<AdminExams />} />
+              <Route path="assignments" element={<AdminAssignments />} />
+              <Route path="results" element={<AdminResults />} />
+              <Route path="fees" element={<AdminFees />} />
+              <Route path="receipts" element={<AdminReceipts />} />
+              <Route path="hostel" element={<AdminHostel />} />
+              <Route path="library" element={<AdminLibrary />} />
+              <Route path="transcript" element={<AdminTranscript />} />
+              <Route path="announcements" element={<AdminAnnouncements />} />
+            </Route>
+          </Route>
         </Route>
+
         <Route
           path="*"
           element={
-            <div>
-              <h1>404 - Page Not Found</h1>
+            <div className="flex min-h-svh items-center justify-center p-6">
+              <h1 className="text-xl font-semibold">404 - Page Not Found</h1>
             </div>
           }
         />
