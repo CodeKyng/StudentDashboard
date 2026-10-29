@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import Lenis from "lenis"
+import "lenis/dist/lenis.css"
 import {
   BookOpen,
   GraduationCap,
@@ -367,7 +368,7 @@ function Home() {
               </h2>
               <p className="text-base leading-relaxed text-white/65">
                 Founded with a vision to provide world-class education, the University of Jos has
-                grown into one of Nigeria&apos;s most respected universities. Our commitment to
+                grown into one of Nigeria's most respected universities. Our commitment to
                 academic excellence, research innovation, and student development makes us a beacon
                 for thousands of scholars.
               </p>
@@ -503,7 +504,7 @@ function Home() {
                 <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
                   <h4 className="font-semibold text-[#C9A227]">Postgraduate</h4>
                   <ul className="mt-3 space-y-1.5 text-sm text-white/60">
-                    <li>• Relevant bachelor&apos;s degree (minimum 2.1 or equivalent)</li>
+                    <li>• Relevant bachelor's degree (minimum 2.1 or equivalent)</li>
                     <li>• Transcripts and references</li>
                     <li>• Statement of purpose</li>
                     <li>• Program-specific requirements where applicable</li>
