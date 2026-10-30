@@ -15,7 +15,6 @@ import {
   getAuthErrorMessage,
   signInWithEmail,
   signOutUser,
-  type SelfAssignableRole,
 } from "@/lib/auth"
 import { homePathForRole, pathForRole } from "@/lib/roles"
 import { cn } from "@/lib/utils"
@@ -30,7 +29,6 @@ export function LoginForm({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [needsProfile, setNeedsProfile] = useState(false)
   const [displayName, setDisplayName] = useState("")
-  const [role, setRole] = useState<SelfAssignableRole>("Student")
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -44,9 +42,10 @@ export function LoginForm({
     try {
       const profile = await signInWithEmail(email, password)
       const from = location.state?.from?.pathname
-      navigate(pathForRole(profile.role, typeof from === "string" ? from : undefined), {
-        replace: true,
-      })
+      navigate(
+        pathForRole(profile.role, typeof from === "string" ? from : undefined),
+        { replace: true }
+      )
     } catch (submitError) {
       if (submitError instanceof IncompleteProfileError) {
         setNeedsProfile(true)
@@ -69,7 +68,11 @@ export function LoginForm({
     }
     setIsSubmitting(true)
     try {
-      const profile = await completeIncompleteProfile(displayName.trim(), role)
+      // Incomplete profiles always finish as Student; Admin assigns other roles.
+      const profile = await completeIncompleteProfile(
+        displayName.trim(),
+        "Student"
+      )
       navigate(homePathForRole(profile.role), { replace: true })
     } catch (submitError) {
       setError(getAuthErrorMessage(submitError))
@@ -103,7 +106,7 @@ export function LoginForm({
             <h1 className="text-2xl font-bold">Finish setting up your account</h1>
             <p className="text-sm text-balance text-muted-foreground">
               Your login worked, but your profile was never saved. Complete the
-              form below to continue.
+              form below to continue as a student.
             </p>
           </div>
           <Field>
@@ -118,26 +121,10 @@ export function LoginForm({
               autoComplete="name"
             />
           </Field>
-          <Field>
-            <FieldLabel htmlFor="complete-role">Account type</FieldLabel>
-            <select
-              id="complete-role"
-              value={role}
-              onChange={(event) => {
-                const value = event.target.value
-                if (value === "Staff" || value === "Student") {
-                  setRole(value)
-                }
-              }}
-              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            >
-              <option value="Student">Student</option>
-              <option value="Staff">Staff</option>
-            </select>
-            <FieldDescription>
-              Parent accounts are invite-only from a student guardian link.
-            </FieldDescription>
-          </Field>
+          <FieldDescription className="rounded-lg border bg-muted/40 px-3 py-2 text-left text-xs">
+            Accounts are created as Student. An administrator can later assign
+            Staff or Admin. Parent access uses a student invite link only.
+          </FieldDescription>
           {error && (
             <p className="text-sm text-destructive" role="alert">
               {error}

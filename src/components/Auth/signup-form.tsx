@@ -9,11 +9,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import {
-  getAuthErrorMessage,
-  registerWithEmail,
-  type SelfAssignableRole,
-} from "@/lib/auth"
+import { getAuthErrorMessage, registerWithEmail } from "@/lib/auth"
 import { homePathForRole } from "@/lib/roles"
 import { cn } from "@/lib/utils"
 
@@ -22,7 +18,6 @@ export function SignupForm({
   ...props
 }: React.ComponentProps<"form">) {
   const navigate = useNavigate()
-  const [role, setRole] = useState<SelfAssignableRole>("Student")
   const [error, setError] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -53,8 +48,10 @@ export function SignupForm({
 
     setIsSubmitting(true)
     try {
-      await registerWithEmail(email, password, displayName, role)
-      navigate(homePathForRole(role), { replace: true })
+      // Public signup is always Student. Admin promotes to Staff/Admin later.
+      // Parent accounts are invite-only via student guardian links.
+      await registerWithEmail(email, password, displayName, "Student")
+      navigate(homePathForRole("Student"), { replace: true })
     } catch (submitError) {
       setError(getAuthErrorMessage(submitError))
     } finally {
@@ -72,7 +69,8 @@ export function SignupForm({
         <div className="flex flex-col items-center gap-1 text-center">
           <h1 className="text-2xl font-bold">Create your account</h1>
           <p className="text-sm text-balance text-muted-foreground">
-            Fill in the form below to create your account
+            Sign up as a student. Staff and admin access are assigned by the
+            university administration.
           </p>
         </div>
         <Field>
@@ -99,8 +97,8 @@ export function SignupForm({
             className="bg-background"
           />
           <FieldDescription>
-            We'll use this to contact you. We will not share your email
-            with anyone else.
+            We&apos;ll use this to contact you. We will not share your email with
+            anyone else.
           </FieldDescription>
         </Field>
         <Field>
@@ -131,30 +129,11 @@ export function SignupForm({
           />
           <FieldDescription>Please confirm your password.</FieldDescription>
         </Field>
-        <Field>
-          <FieldLabel htmlFor="role">Account type</FieldLabel>
-          <select
-            id="role"
-            value={role}
-            onChange={(event) => {
-              const value = event.target.value
-              if (value === "Staff" || value === "Student") {
-                setRole(value)
-              }
-            }}
-            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            <option value="Student">Student</option>
-            <option value="Staff">Staff</option>
-            <option value="Admin" disabled>
-              Admin (assigned by an administrator)
-            </option>
-          </select>
-          <FieldDescription>
-            Parent accounts are invite-only: a student must send a guardian
-            invite link. Admin access is granted by a trusted administrator.
-          </FieldDescription>
-        </Field>
+        <FieldDescription className="rounded-lg border bg-muted/40 px-3 py-2 text-left text-xs">
+          Parent / guardian accounts are invite-only: a student must send a
+          guardian link. Staff and Admin roles are granted by an administrator
+          after signup.
+        </FieldDescription>
         {error && (
           <div className="space-y-1" role="alert">
             <p className="text-sm text-destructive">{error}</p>
