@@ -99,7 +99,7 @@ export function SignupForm({
             className="bg-background"
           />
           <FieldDescription>
-            We&apos;ll use this to contact you. We will not share your email
+            We'll use this to contact you. We will not share your email
             with anyone else.
           </FieldDescription>
         </Field>
@@ -138,11 +138,7 @@ export function SignupForm({
             value={role}
             onChange={(event) => {
               const value = event.target.value
-              if (
-                value === "Staff" ||
-                value === "Student" ||
-                value === "Parent"
-              ) {
+              if (value === "Staff" || value === "Student") {
                 setRole(value)
               }
             }}
@@ -150,13 +146,13 @@ export function SignupForm({
           >
             <option value="Student">Student</option>
             <option value="Staff">Staff</option>
-            <option value="Parent">Parent</option>
             <option value="Admin" disabled>
               Admin (assigned by an administrator)
             </option>
           </select>
           <FieldDescription>
-            Admin access can only be granted by a trusted administrator.
+            Parent accounts are invite-only: a student must send a guardian
+            invite link. Admin access is granted by a trusted administrator.
           </FieldDescription>
         </Field>
         {error && (
