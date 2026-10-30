@@ -20,6 +20,27 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == userId;
     }
 
+    function isStudent() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDoc().role == 'Student';
+    }
+
+    function isParent() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDoc().role == 'Parent';
+    }
+
+    function parentLinkPath(parentUid, studentUid) {
+      return /databases/$(database)/documents/parentLinks/$(parentUid + '_' + studentUid);
+    }
+
+    function isLinkedParentOf(studentUid) {
+      return signedIn()
+        && exists(parentLinkPath(request.auth.uid, studentUid));
+    }
+
     match /users/{userId} {
       allow read: if isOwner(userId) || isOperator();
 
@@ -54,7 +75,7 @@ service cloud.firestore {
     }
 
     match /dashboardData/{userId} {
-      allow read: if isOwner(userId) || isOperator();
+      allow read: if isOwner(userId) || isOperator() || isLinkedParentOf(userId);
       allow create, update: if isOperator();
       allow delete: if false;
     }
@@ -72,6 +93,58 @@ service cloud.firestore {
     match /courses/{courseId} {
       allow read: if signedIn();
       allow create, update, delete: if isOperator();
+    }
+
+    match /parentInvites/{inviteId} {
+      allow get: if true;
+      allow list: if isOperator()
+        || (isStudent() && resource.data.studentUid == request.auth.uid);
+
+      allow create: if isStudent()
+        && request.resource.data.studentUid == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.keys().hasAll([
+          'studentUid',
+          'studentName',
+          'guardianEmail',
+          'status',
+          'createdAt',
+          'expiresAt'
+        ]);
+
+      allow update: if isStudent()
+          && resource.data.studentUid == request.auth.uid
+        || (signedIn()
+          && request.auth.token.email != null
+          && resource.data.guardianEmail == request.auth.token.email
+          && request.resource.data.status == 'accepted'
+          && request.resource.data.acceptedByUid == request.auth.uid);
+
+      allow delete: if isOperator()
+        || (isStudent() && resource.data.studentUid == request.auth.uid);
+    }
+
+    match /parentLinks/{linkId} {
+      allow read: if isOperator()
+        || (signedIn() && resource.data.parentUid == request.auth.uid)
+        || (signedIn() && resource.data.studentUid == request.auth.uid);
+
+      allow create: if isParent()
+        && request.resource.data.parentUid == request.auth.uid
+        && request.resource.data.parentEmail == request.auth.token.email
+        && request.resource.data.keys().hasAll([
+          'parentUid',
+          'parentEmail',
+          'parentName',
+          'studentUid',
+          'studentName',
+          'sourceInviteId',
+          'createdAt'
+        ]);
+
+      allow update, delete: if isOperator()
+        || (isStudent() && resource.data.studentUid == request.auth.uid)
+        || (isParent() && resource.data.parentUid == request.auth.uid);
     }
   }
 }
