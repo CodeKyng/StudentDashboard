@@ -14,6 +14,7 @@ const STRUCTURE_PATHS = new Set([
   "/admin/departments",
   "/admin/courses",
   "/admin/students",
+  "/admin/staff-manager",
 ])
 
 function AdminFrame() {
