@@ -26,7 +26,7 @@ import {
 } from "lucide-react"
 
 function StudentDashboard() {
-  const { data } = useDashboardContext()
+  const { data, identity } = useDashboardContext()
   const formatCurrency = (amount: number | undefined) =>
     amount === undefined
       ? "Not provided"
@@ -59,6 +59,12 @@ function StudentDashboard() {
     data.attendancePercentage !== undefined &&
     data.warningPercentage !== undefined &&
     data.attendancePercentage >= data.warningPercentage
+
+  const placementReady = Boolean(
+    identity.matricNumber &&
+      (identity.facultyName || data.faculty) &&
+      (identity.departmentName || data.department)
+  )
 
   return (
     <SidebarProvider>
@@ -143,12 +149,16 @@ function StudentDashboard() {
           <Card>
             <CardHeader>
               <CardTitle>Courses</CardTitle>
-              <CardDescription>Currently enrolled courses</CardDescription>
+              <CardDescription>You registered this semester</CardDescription>
             </CardHeader>
             <CardContent>
               <p className="text-5xl font-bold">{data.courses.length}</p>
             </CardContent>
-            <CardFooter>For this semester</CardFooter>
+            <CardFooter>
+              <Button variant="link" className="h-auto p-0" asChild>
+                <Link to="/registercourses">Manage registration</Link>
+              </Button>
+            </CardFooter>
           </Card>
           <Card>
             <CardHeader>
@@ -191,9 +201,24 @@ function StudentDashboard() {
                     </div>
                   ))
                 ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No course records are available in Firebase.
-                  </p>
+                  <div className="space-y-3 text-sm text-muted-foreground">
+                    <p>You have not registered any courses yet.</p>
+                    {!placementReady ? (
+                      <p>
+                        Wait until admin assigns your matric, faculty, and
+                        department, then open Course registration.
+                      </p>
+                    ) : data.registrationEligible !== true ? (
+                      <p>
+                        Placement is set. Registration opens when admin marks
+                        you eligible for this session.
+                      </p>
+                    ) : (
+                      <Button asChild>
+                        <Link to="/registercourses">Register courses</Link>
+                      </Button>
+                    )}
+                  </div>
                 )}
               </CardContent>
             </ScrollArea>
@@ -245,7 +270,8 @@ function StudentDashboard() {
                     ))
                   ) : (
                     <p className="text-sm text-muted-foreground">
-                      No attendance records are available in Firebase.
+                      Attendance appears after you register courses and staff
+                      mark the class.
                     </p>
                   )}
                 </CardContent>

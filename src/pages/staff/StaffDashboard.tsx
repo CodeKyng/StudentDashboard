@@ -1,4 +1,3 @@
-import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import {
   ArrowRight,
@@ -6,10 +5,8 @@ import {
   CalendarCheck,
   Clock,
   FileText,
-  UserPlus,
   Users,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { useStaff } from "@/components/staff/staff-context"
 import { Badge } from "@/components/ui/badge"
@@ -21,7 +18,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import {
   Table,
   TableBody,
@@ -35,69 +31,43 @@ export default function StaffDashboard() {
   const {
     selectedCourse,
     selectedCourseCode,
+    courses,
+    coursesStatus,
     roster,
     rosterStatus,
-    students,
-    studentsStatus,
-    addStudentToCourse,
-    adding,
   } = useStaff()
-
-  const [query, setQuery] = useState("")
-  const [pickUid, setPickUid] = useState("")
-
-  const onRoster = useMemo(
-    () => new Set(roster.map((r) => r.uid)),
-    [roster]
-  )
-
-  const candidates = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return students
-      .filter((s) => !onRoster.has(s.uid))
-      .filter((s) => {
-        if (!q) return true
-        return (
-          s.displayName.toLowerCase().includes(q) ||
-          s.email.toLowerCase().includes(q) ||
-          (s.matricNumber ?? "").toLowerCase().includes(q)
-        )
-      })
-      .slice(0, 40)
-  }, [students, onRoster, query])
-
-  async function handleAdd() {
-    if (!pickUid) {
-      toast.error("Choose a student to add.")
-      return
-    }
-    await addStudentToCourse(pickUid)
-    setPickUid("")
-  }
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Staff dashboard</h1>
         <p className="text-sm text-muted-foreground">
-          Select a course, build the student roster, then enter attendance, CA,
-          exam scores, assignments, and exam schedules for your class.
+          Courses assigned to you by Admin. Class lists fill automatically when
+          students register those courses themselves.
         </p>
       </div>
 
-      {!selectedCourseCode && (
-        <Card>
+      {coursesStatus === "ready" && courses.length === 0 && (
+        <Card className="border-dashed">
           <CardHeader>
-            <CardTitle>Get started</CardTitle>
+            <CardTitle>No courses assigned</CardTitle>
             <CardDescription>
-              Use the course selector above. Courses come from the institutional
-              catalog managed by Admin.
+              An administrator must assign you courses under Staff manager
+              before you can mark attendance or scores.
             </CardDescription>
           </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Typical flow: pick a course → add registered students → open
-            Attendance or CA &amp; Exam scores → save.
-          </CardContent>
+        </Card>
+      )}
+
+      {!selectedCourseCode && courses.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Select a course</CardTitle>
+            <CardDescription>
+              Use the course selector in the top bar. Your roster shows students
+              who completed Course registration for that unit.
+            </CardDescription>
+          </CardHeader>
         </Card>
       )}
 
@@ -129,7 +99,7 @@ export default function StaffDashboard() {
                   {rosterStatus === "loading" ? "—" : roster.length}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Students with this course on record
+                  Self-registered students
                 </p>
               </CardContent>
             </Card>
@@ -175,108 +145,63 @@ export default function StaffDashboard() {
             </Card>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Add student to roster</CardTitle>
-                <CardDescription>
-                  Adds results and attendance rows for this course on the
-                  student&apos;s dashboard (CA/Exam start at 0).
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Input
-                  placeholder="Search name, email, or matric…"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  disabled={studentsStatus !== "ready"}
-                />
-                <select
-                  className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
-                  value={pickUid}
-                  onChange={(e) => setPickUid(e.target.value)}
-                  disabled={studentsStatus !== "ready"}
+          <Card>
+            <CardHeader>
+              <CardTitle>Academic tools</CardTitle>
+              <CardDescription>
+                Work the class list below — data appears on each student portal.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-2 sm:grid-cols-2">
+              <Button asChild variant="outline" className="justify-between">
+                <Link
+                  to={`/staff/attendance?course=${encodeURIComponent(selectedCourse.code)}`}
                 >
-                  <option value="">
-                    {studentsStatus === "loading"
-                      ? "Loading students…"
-                      : "Select student"}
-                  </option>
-                  {candidates.map((s) => (
-                    <option key={s.uid} value={s.uid}>
-                      {s.displayName}
-                      {s.matricNumber ? ` · ${s.matricNumber}` : ""} · {s.email}
-                    </option>
-                  ))}
-                </select>
-                <Button
-                  type="button"
-                  disabled={!pickUid || adding || !selectedCourse}
-                  onClick={() => void handleAdd()}
+                  <span className="flex items-center gap-2">
+                    <CalendarCheck className="size-4" /> Mark attendance
+                  </span>
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="justify-between">
+                <Link
+                  to={`/staff/scores?course=${encodeURIComponent(selectedCourse.code)}`}
                 >
-                  <UserPlus className="size-4" />
-                  {adding ? "Adding…" : "Add to course"}
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Academic tools</CardTitle>
-                <CardDescription>
-                  Fill data that appears on each student&apos;s portal.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-2">
-                <Button asChild variant="outline" className="justify-between">
-                  <Link
-                    to={`/staff/attendance?course=${encodeURIComponent(selectedCourse.code)}`}
-                  >
-                    <span className="flex items-center gap-2">
-                      <CalendarCheck className="size-4" /> Mark attendance
-                    </span>
-                    <ArrowRight className="size-4" />
-                  </Link>
-                </Button>
-                <Button asChild variant="outline" className="justify-between">
-                  <Link
-                    to={`/staff/scores?course=${encodeURIComponent(selectedCourse.code)}`}
-                  >
-                    <span className="flex items-center gap-2">
-                      <Award className="size-4" /> Enter CA & exam scores
-                    </span>
-                    <ArrowRight className="size-4" />
-                  </Link>
-                </Button>
-                <Button asChild variant="outline" className="justify-between">
-                  <Link
-                    to={`/staff/assignments?course=${encodeURIComponent(selectedCourse.code)}`}
-                  >
-                    <span className="flex items-center gap-2">
-                      <FileText className="size-4" /> Publish assignment
-                    </span>
-                    <ArrowRight className="size-4" />
-                  </Link>
-                </Button>
-                <Button asChild variant="outline" className="justify-between">
-                  <Link
-                    to={`/staff/exams?course=${encodeURIComponent(selectedCourse.code)}`}
-                  >
-                    <span className="flex items-center gap-2">
-                      <Clock className="size-4" /> Set exam schedule
-                    </span>
-                    <ArrowRight className="size-4" />
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
+                  <span className="flex items-center gap-2">
+                    <Award className="size-4" /> Enter CA & exam scores
+                  </span>
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="justify-between">
+                <Link
+                  to={`/staff/assignments?course=${encodeURIComponent(selectedCourse.code)}`}
+                >
+                  <span className="flex items-center gap-2">
+                    <FileText className="size-4" /> Publish assignment
+                  </span>
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="justify-between">
+                <Link
+                  to={`/staff/exams?course=${encodeURIComponent(selectedCourse.code)}`}
+                >
+                  <span className="flex items-center gap-2">
+                    <Clock className="size-4" /> Set exam schedule
+                  </span>
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>Current roster</CardTitle>
+              <CardTitle>Class list</CardTitle>
               <CardDescription>
-                Students who already have this course on their academic record.
+                Students who registered for {selectedCourse.code} themselves.
+                Empty until registration is submitted on the student portal.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -309,7 +234,7 @@ export default function StaffDashboard() {
                           colSpan={6}
                           className="text-center text-muted-foreground"
                         >
-                          No students yet. Add students above.
+                          No students have registered this course yet.
                         </TableCell>
                       </TableRow>
                     )}
