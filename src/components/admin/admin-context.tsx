@@ -15,6 +15,7 @@ import {
   getDashboardData,
   type DashboardData,
 } from "@/lib/dashboard-data"
+import { computeCgpa, withAutoGrades } from "@/lib/grades"
 
 type LoadStatus = "loading" | "ready" | "error"
 type RecordStatus = "idle" | "loading" | "ready" | "error"
@@ -122,7 +123,14 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     if (!draft || !selectedUid) return
     setSaving(true)
     try {
-      await saveStudentDashboard(selectedUid, draft)
+      const results = withAutoGrades(draft.results)
+      const payload: DashboardData = {
+        ...draft,
+        results,
+        cgpa: computeCgpa(results),
+      }
+      await saveStudentDashboard(selectedUid, payload)
+      setDraft(payload)
       setDirty(false)
       toast.success("Student record saved.")
     } catch (error) {
