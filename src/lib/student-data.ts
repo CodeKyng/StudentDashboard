@@ -41,6 +41,18 @@ function courseKey(code: string) {
   return code.trim().toUpperCase()
 }
 
+function statusIsPaid(status: string | undefined): boolean {
+  if (!status) return false
+  const s = status.trim().toLowerCase()
+  return s === "paid" || s === "cleared" || s === "complete" || s === "completed"
+}
+
+/** True when feeStatus or any payment record indicates school fees are paid. */
+export function isSchoolFeesPaid(data: DashboardData): boolean {
+  if (statusIsPaid(data.feeStatus)) return true
+  return (data.paymentRecords ?? []).some((r) => statusIsPaid(r.status))
+}
+
 export async function getStudentIdentity(uid: string): Promise<StudentIdentity> {
   const snap = await getDoc(doc(db, "users", uid))
   if (!snap.exists()) return {}
@@ -80,8 +92,8 @@ export async function loadStudentView(
 }
 
 /**
- * Student self-registration: saves courses on their dashboard and publishes
- * courseEnrollments so staff teaching those courses can see the class list.
+ * Student self-registration: only allowed after school fees are paid.
+ * Saves courses and publishes courseEnrollments for staff rosters.
  */
 export async function saveRegisteredCourses(
   uid: string,
@@ -94,9 +106,15 @@ export async function saveRegisteredCourses(
   }
 ): Promise<void> {
   const current = await getDashboardData(uid)
+
+  if (!isSchoolFeesPaid(current)) {
+    throw new Error(
+      "School fees must be paid before you can register courses. Open School fees to complete payment."
+    )
+  }
+
   const catalog = meta?.institutionCourses ?? []
 
-  // Seed empty CA/exam + attendance rows for newly registered courses
   let results = [...current.results]
   let attendanceCourses = [...current.attendanceCourses]
 
@@ -122,7 +140,6 @@ export async function saveRegisteredCourses(
     }
   }
 
-  // Drop score rows for courses the student unregistered (optional cleanup)
   const registeredCodes = new Set(courses.map((c) => courseKey(c.code)))
   results = results.filter((r) => registeredCodes.has(courseKey(r.code)))
   attendanceCourses = attendanceCourses.filter((a) =>
@@ -145,7 +162,6 @@ export async function saveRegisteredCourses(
     { merge: true }
   )
 
-  // Sync public enrollments used by staff rosters
   const existing = await listCourseEnrollments()
   const mine = existing.filter((e) => e.studentUid === uid)
   const mineCodes = new Set(mine.map((e) => courseKey(e.courseCode)))
@@ -187,6 +203,10 @@ export async function saveRegisteredCourses(
   }
 }
 
+/**
+ * Placeholder payment: marks fees Paid so registration can unlock in testing.
+ * Replace with real gateway callback later.
+ */
 export async function startFeePaymentPlaceholder(
   uid: string,
   input: {
@@ -202,7 +222,7 @@ export async function startFeePaymentPlaceholder(
     level: input.level || current.level || "—",
     date: new Date().toISOString().slice(0, 10),
     rrr,
-    status: "Pending",
+    status: "Paid",
   }
   const paymentRecords = [record, ...(current.paymentRecords ?? [])]
   await setDoc(
@@ -210,7 +230,8 @@ export async function startFeePaymentPlaceholder(
     {
       ...current,
       paymentRecords,
-      feeStatus: "Payment pending",
+      feeStatus: "Paid",
+      feesDue: 0,
       updatedAt: serverTimestamp(),
       updatedBy: uid,
     },
