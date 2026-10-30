@@ -22,6 +22,8 @@ import AdminDashboard from "./pages/admin/AdminDashboard"
 import AdminStudents from "./pages/admin/AdminStudents"
 import AdminProfile from "./pages/admin/AdminProfile"
 import AdminCourses from "./pages/admin/AdminCourses"
+import AdminFaculties from "./pages/admin/AdminFaculties"
+import AdminDepartments from "./pages/admin/AdminDepartments"
 import AdminAttendance from "./pages/admin/AdminAttendance"
 import AdminExams from "./pages/admin/AdminExams"
 import AdminAssignments from "./pages/admin/AdminAssignments"
@@ -58,6 +60,8 @@ function App() {
           <Route element={<RequireRole allow={["Admin", "Staff"]} />}>
             <Route path="/admin" element={<AdminShell />}>
               <Route index element={<AdminDashboard />} />
+              <Route path="faculties" element={<AdminFaculties />} />
+              <Route path="departments" element={<AdminDepartments />} />
               <Route path="students" element={<AdminStudents />} />
               <Route path="profile" element={<AdminProfile />} />
               <Route path="courses" element={<AdminCourses />} />
