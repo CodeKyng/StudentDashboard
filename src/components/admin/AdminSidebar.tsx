@@ -10,6 +10,7 @@ import {
   CreditCard,
   FileSearch,
   FileText,
+  Gauge,
   Home,
   IdCard,
   LayoutDashboard,
@@ -65,6 +66,7 @@ const sections = [
       { title: "Faculties", url: "/admin/faculties", icon: Building2 },
       { title: "Departments", url: "/admin/departments", icon: Building },
       { title: "Courses", url: "/admin/courses", icon: BookOpen },
+      { title: "Unit limits", url: "/admin/unit-limits", icon: Gauge },
     ],
   },
   {
@@ -128,6 +130,7 @@ export function AdminSidebar(props: React.ComponentProps<typeof Sidebar>) {
       "/admin/faculties",
       "/admin/departments",
       "/admin/courses",
+      "/admin/unit-limits",
       "/admin/students",
       "/admin/staff-manager",
     ]

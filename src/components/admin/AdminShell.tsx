@@ -13,6 +13,7 @@ const STRUCTURE_PATHS = new Set([
   "/admin/faculties",
   "/admin/departments",
   "/admin/courses",
+  "/admin/unit-limits",
   "/admin/students",
   "/admin/staff-manager",
 ])

@@ -107,13 +107,17 @@ service cloud.firestore {
       allow create, update, delete: if isOperator();
     }
 
+    match /unitLimits/{limitId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
     match /staffAssignments/{assignmentId} {
       allow read: if isOperator()
         || (signedIn() && resource.data.staffUid == request.auth.uid);
       allow create, update, delete: if isAdmin();
     }
 
-    // Students enroll themselves when registering courses; staff/admin can read.
     match /courseEnrollments/{enrollmentId} {
       allow read: if isOperator()
         || (signedIn() && resource.data.studentUid == request.auth.uid);

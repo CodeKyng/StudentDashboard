@@ -28,6 +28,7 @@ import AdminProfile from "./pages/admin/AdminProfile"
 import AdminCourses from "./pages/admin/AdminCourses"
 import AdminFaculties from "./pages/admin/AdminFaculties"
 import AdminDepartments from "./pages/admin/AdminDepartments"
+import AdminUnitLimits from "./pages/admin/AdminUnitLimits"
 import AdminStaffManager from "./pages/admin/AdminStaffManager"
 import AdminAttendance from "./pages/admin/AdminAttendance"
 import AdminExams from "./pages/admin/AdminExams"
@@ -88,10 +89,11 @@ function App() {
               <Route index element={<AdminDashboard />} />
               <Route path="faculties" element={<AdminFaculties />} />
               <Route path="departments" element={<AdminDepartments />} />
+              <Route path="courses" element={<AdminCourses />} />
+              <Route path="unit-limits" element={<AdminUnitLimits />} />
               <Route path="students" element={<AdminStudents />} />
               <Route path="staff-manager" element={<AdminStaffManager />} />
               <Route path="profile" element={<AdminProfile />} />
-              <Route path="courses" element={<AdminCourses />} />
               <Route path="attendance" element={<AdminAttendance />} />
               <Route path="exams" element={<AdminExams />} />
               <Route path="assignments" element={<AdminAssignments />} />
