@@ -83,12 +83,10 @@ export default function GuardiansPage() {
         guardianEmail: email,
       })
 
-      // Passwordless: Firebase emails a sign-in link that opens the join URL
       try {
         await sendParentMagicLink(invite.guardianEmail, joinUrl)
         toast.success(`Sign-in link emailed to ${invite.guardianEmail}`)
       } catch (mailErr) {
-        // Invite still created — student can share the URL manually
         toast.message(
           `Invite created. Email send failed (${getAuthErrorMessage(mailErr)}). Copy the link below and share it.`
         )
@@ -318,7 +316,8 @@ export default function GuardiansPage() {
                                     Copy
                                   </Button>
                                   <Button
-                                    type="button"\tableofcontents type="icon"
+                                    type="button"
+                                    size="icon"
                                     variant="ghost"
                                     aria-label="Revoke"
                                     onClick={() => void handleRevoke(inv.id)}
