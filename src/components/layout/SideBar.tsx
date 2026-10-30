@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   Clock,
   ClipboardList,
+  Users,
 } from "lucide-react"
 
 import {
@@ -128,6 +129,11 @@ const navigation = {
           url: "/announcement",
           icon: Megaphone,
           badge: "announcements",
+        },
+        {
+          title: "Guardians",
+          url: "/guardians",
+          icon: Users,
         },
       ],
     },
