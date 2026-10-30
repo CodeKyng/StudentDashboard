@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   BookOpen,
   Check,
+  CreditCard,
   GraduationCap,
   IdCard,
   Layers,
@@ -33,7 +34,10 @@ import {
   listInstitutionCourses,
   type InstitutionCourse,
 } from "@/lib/institution-data"
-import { saveRegisteredCourses } from "@/lib/student-data"
+import {
+  isSchoolFeesPaid,
+  saveRegisteredCourses,
+} from "@/lib/student-data"
 import {
   getMaxUnitsForPlacement,
   isFailedGrade,
@@ -97,7 +101,8 @@ function CourseRegistration() {
   const hasLevel = Boolean(identity.level?.trim() || data.level?.trim())
   const placementReady = hasMatric && hasFaculty && hasDepartment && hasLevel
   const eligible = data.registrationEligible === true
-  const canRegister = placementReady && eligible
+  const feesPaid = isSchoolFeesPaid(data)
+  const canRegister = placementReady && eligible && feesPaid
 
   const facultyLabel = identity.facultyName || data.faculty || "—"
   const departmentLabel = identity.departmentName || data.department || "—"
@@ -188,7 +193,6 @@ function CourseRegistration() {
         ...failedOffers.filter((f) => !currentCodes.has(courseKey(f.code))),
       ]
 
-      // If a current-level course was also failed, mark as failed for UI badge
       const merged = offersList.map((o) => {
         if (failedCodes.has(courseKey(o.code)) && o.kind === "current") {
           return {
@@ -274,6 +278,10 @@ function CourseRegistration() {
   }
 
   async function handleSubmit() {
+    if (!feesPaid) {
+      toast.error("Pay school fees before registering courses.")
+      return
+    }
     if (!canRegister) {
       toast.error("Complete placement and eligibility before registering.")
       return
@@ -356,6 +364,17 @@ function CourseRegistration() {
               <div className="flex flex-wrap gap-2">
                 <Badge
                   variant="secondary"
+                  className={
+                    feesPaid
+                      ? "bg-white/15 text-white hover:bg-white/20"
+                      : "bg-amber-500/30 text-white"
+                  }
+                >
+                  <CreditCard className="size-3.5" />
+                  {feesPaid ? "Fees paid" : "Fees unpaid"}
+                </Badge>
+                <Badge
+                  variant="secondary"
                   className="bg-white/15 text-white hover:bg-white/20"
                 >
                   <Layers className="size-3.5" />
@@ -398,6 +417,28 @@ function CourseRegistration() {
                 </Button>
               </CardContent>
             </Card>
+          ) : !feesPaid ? (
+            <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-900/40 dark:bg-amber-950/20">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-amber-900 dark:text-amber-100">
+                  <CreditCard className="size-4" />
+                  School fees required
+                </CardTitle>
+                <CardDescription>
+                  You can only register courses after school fees are paid for
+                  this session. Status:{" "}
+                  <strong>{data.feeStatus || "Not paid"}</strong>.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-wrap gap-2">
+                <Button asChild>
+                  <Link to="/school-fees">Pay school fees</Link>
+                </Button>
+                <Button variant="outline" asChild>
+                  <Link to="/dashboard">Back to dashboard</Link>
+                </Button>
+              </CardContent>
+            </Card>
           ) : !eligible ? (
             <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-900/40 dark:bg-amber-950/20">
               <CardHeader>
@@ -406,8 +447,8 @@ function CourseRegistration() {
                   Registration not opened
                 </CardTitle>
                 <CardDescription>
-                  Placement is complete. Admin must mark you registration
-                  eligible for this session.
+                  Fees are paid and placement is complete. Admin must still mark
+                  you registration eligible for this session.
                 </CardDescription>
               </CardHeader>
             </Card>

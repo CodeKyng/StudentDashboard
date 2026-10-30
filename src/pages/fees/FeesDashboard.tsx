@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { Link } from "react-router-dom"
 import { toast } from "sonner"
 import { CreditCard, Loader2, ShieldAlert } from "lucide-react"
 
@@ -26,7 +27,10 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { getAuthErrorMessage } from "@/lib/auth"
-import { startFeePaymentPlaceholder } from "@/lib/student-data"
+import {
+  isSchoolFeesPaid,
+  startFeePaymentPlaceholder,
+} from "@/lib/student-data"
 
 function FeesDashboard() {
   const { data, identity, profile, setData, refresh } = useDashboardContext()
@@ -43,10 +47,11 @@ function FeesDashboard() {
         }).format(amount)
 
   const amountDue = data.feesDue ?? data.schoolFeeAmount
+  const feesPaid = isSchoolFeesPaid(data)
   const canPay =
+    !feesPaid &&
     amountDue !== undefined &&
-    amountDue > 0 &&
-    data.feeStatus !== "Paid"
+    amountDue > 0
 
   async function handlePayPlaceholder() {
     setPaying(true)
@@ -61,9 +66,12 @@ function FeesDashboard() {
       setData((prev) => ({
         ...prev,
         paymentRecords: [record, ...prev.paymentRecords],
-        feeStatus: "Payment pending",
+        feeStatus: "Paid",
+        feesDue: 0,
       }))
-      toast.success("Payment initiated (placeholder). RRR generated.")
+      toast.success(
+        "School fees marked paid (placeholder). You can now register courses."
+      )
       await refresh()
     } catch (error) {
       toast.error(getAuthErrorMessage(error))
@@ -87,7 +95,11 @@ function FeesDashboard() {
               <CardTitle className="flex flex-wrap items-center gap-2">
                 <CreditCard className="size-5" />
                 Payment due
-                {data.feeStatus && <Badge>{data.feeStatus}</Badge>}
+                {data.feeStatus && (
+                  <Badge variant={feesPaid ? "secondary" : "destructive"}>
+                    {data.feeStatus}
+                  </Badge>
+                )}
               </CardTitle>
               <CardDescription>
                 {identity.matricNumber
@@ -102,7 +114,9 @@ function FeesDashboard() {
                 <p className="text-xs font-medium text-muted-foreground">
                   Amount due
                 </p>
-                <h1 className="text-3xl font-bold">{formatCurrency(amountDue)}</h1>
+                <h1 className="text-3xl font-bold">
+                  {feesPaid ? formatCurrency(0) : formatCurrency(amountDue)}
+                </h1>
                 <p className="mt-2 text-sm text-muted-foreground">
                   {identity.facultyName || data.faculty || "Faculty —"}
                   {(identity.departmentName || data.department)
@@ -131,39 +145,49 @@ function FeesDashboard() {
               <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
                 <ShieldAlert className="mt-0.5 size-4 shrink-0" />
                 <p>
-                  <strong>Payment placeholder.</strong> No live gateway yet
-                  (Remita / Paystack can be wired later). Tapping pay creates a{" "}
-                  <em>Pending</em> record with a mock RRR for testing the flow.
+                  <strong>Payment placeholder.</strong> Completing payment marks
+                  fees as <em>Paid</em> and unlocks course registration. A live
+                  gateway (Remita / Paystack) can replace this later.
                 </p>
               </div>
-              <Button
-                type="button"
-                size="lg"
-                disabled={!canPay || paying}
-                onClick={() => void handlePayPlaceholder()}
-              >
-                {paying ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" />
-                    Starting payment…
-                  </>
-                ) : (
-                  <>
-                    <CreditCard className="size-4" />
-                    Pay school fees (placeholder)
-                  </>
-                )}
-              </Button>
+              {feesPaid ? (
+                <div className="space-y-2 text-center">
+                  <p className="text-sm font-medium text-emerald-600">
+                    School fees are paid. You may register courses.
+                  </p>
+                  <Button asChild variant="outline">
+                    <Link to="/registercourses">Go to course registration</Link>
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  size="lg"
+                  disabled={!canPay || paying}
+                  onClick={() => void handlePayPlaceholder()}
+                >
+                  {paying ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      Processing…
+                    </>
+                  ) : (
+                    <>
+                      <CreditCard className="size-4" />
+                      Pay school fees (placeholder)
+                    </>
+                  )}
+                </Button>
+              )}
               {lastRrr && (
                 <p className="text-center font-mono text-sm text-muted-foreground">
                   Mock RRR: {lastRrr}
                 </p>
               )}
-              {!canPay && (
+              {!feesPaid && !canPay && (
                 <p className="text-center text-xs text-muted-foreground">
-                  {data.feeStatus === "Paid"
-                    ? "Fees marked as paid."
-                    : "No amount due is set for this student yet."}
+                  No amount due is set for this student yet. Admin should set
+                  school fee amount on your record.
                 </p>
               )}
             </CardFooter>
