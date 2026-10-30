@@ -3,7 +3,6 @@ import { Link } from "react-router-dom"
 import { toast } from "sonner"
 import {
   AlertTriangle,
-  BookOpen,
   Check,
   CreditCard,
   GraduationCap,
@@ -100,9 +99,9 @@ function CourseRegistration() {
   )
   const hasLevel = Boolean(identity.level?.trim() || data.level?.trim())
   const placementReady = hasMatric && hasFaculty && hasDepartment && hasLevel
-  const eligible = data.registrationEligible === true
   const feesPaid = isSchoolFeesPaid(data)
-  const canRegister = placementReady && eligible && feesPaid
+  // Eligible for registration once placement is set and school fees are paid
+  const canRegister = placementReady && feesPaid
 
   const facultyLabel = identity.facultyName || data.faculty || "—"
   const departmentLabel = identity.departmentName || data.department || "—"
@@ -282,8 +281,8 @@ function CourseRegistration() {
       toast.error("Pay school fees before registering courses.")
       return
     }
-    if (!canRegister) {
-      toast.error("Complete placement and eligibility before registering.")
+    if (!placementReady) {
+      toast.error("Complete placement before registering.")
       return
     }
     if (selected.size === 0) {
@@ -384,13 +383,12 @@ function CourseRegistration() {
                 <Badge
                   variant="secondary"
                   className={
-                    eligible
+                    canRegister
                       ? "bg-white/15 text-white hover:bg-white/20"
                       : "bg-amber-500/30 text-white"
                   }
                 >
-                  <BookOpen className="size-3.5" />
-                  {eligible ? "Eligible" : "Not eligible"}
+                  {canRegister ? "Eligible to register" : "Not ready"}
                 </Badge>
               </div>
             </CardContent>
@@ -425,9 +423,8 @@ function CourseRegistration() {
                   School fees required
                 </CardTitle>
                 <CardDescription>
-                  You can only register courses after school fees are paid for
-                  this session. Status:{" "}
-                  <strong>{data.feeStatus || "Not paid"}</strong>.
+                  Every student who has paid school fees can register courses.
+                  Status: <strong>{data.feeStatus || "Not paid"}</strong>.
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-wrap gap-2">
@@ -438,19 +435,6 @@ function CourseRegistration() {
                   <Link to="/dashboard">Back to dashboard</Link>
                 </Button>
               </CardContent>
-            </Card>
-          ) : !eligible ? (
-            <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-900/40 dark:bg-amber-950/20">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-amber-900 dark:text-amber-100">
-                  <Lock className="size-4" />
-                  Registration not opened
-                </CardTitle>
-                <CardDescription>
-                  Fees are paid and placement is complete. Admin must still mark
-                  you registration eligible for this session.
-                </CardDescription>
-              </CardHeader>
             </Card>
           ) : (
             <form
