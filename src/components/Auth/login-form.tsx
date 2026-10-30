@@ -51,10 +51,10 @@ export function LoginForm({
       if (submitError instanceof IncompleteProfileError) {
         setNeedsProfile(true)
         setError("")
-        setDisplayName("")
-      } else {
-        setError(getAuthErrorMessage(submitError))
+        setIsSubmitting(false)
+        return
       }
+      setError(getAuthErrorMessage(submitError))
     } finally {
       setIsSubmitting(false)
     }
@@ -63,19 +63,16 @@ export function LoginForm({
   async function handleCompleteProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError("")
-
-    const name = displayName.trim()
-    if (!name) {
-      setError("Enter your full name to finish setup.")
+    if (!displayName.trim()) {
+      setError("Enter your full name.")
       return
     }
-
     setIsSubmitting(true)
     try {
-      const profile = await completeIncompleteProfile(name, role)
+      const profile = await completeIncompleteProfile(displayName.trim(), role)
       navigate(homePathForRole(profile.role), { replace: true })
-    } catch (completeError) {
-      setError(getAuthErrorMessage(completeError))
+    } catch (submitError) {
+      setError(getAuthErrorMessage(submitError))
     } finally {
       setIsSubmitting(false)
     }
@@ -85,9 +82,11 @@ export function LoginForm({
     setIsSubmitting(true)
     try {
       await signOutUser()
-    } finally {
       setNeedsProfile(false)
       setError("")
+    } catch (cancelError) {
+      setError(getAuthErrorMessage(cancelError))
+    } finally {
       setIsSubmitting(false)
     }
   }
@@ -101,10 +100,10 @@ export function LoginForm({
       >
         <FieldGroup>
           <div className="flex flex-col items-center gap-1 text-center">
-            <h1 className="text-2xl font-bold">Finish account setup</h1>
+            <h1 className="text-2xl font-bold">Finish setting up your account</h1>
             <p className="text-sm text-balance text-muted-foreground">
-              Your login worked, but the profile document is missing. Complete
-              the fields below to continue.
+              Your login worked, but your profile was never saved. Complete the
+              form below to continue.
             </p>
           </div>
           <Field>
@@ -126,11 +125,7 @@ export function LoginForm({
               value={role}
               onChange={(event) => {
                 const value = event.target.value
-                if (
-                  value === "Staff" ||
-                  value === "Student" ||
-                  value === "Parent"
-                ) {
+                if (value === "Staff" || value === "Student") {
                   setRole(value)
                 }
               }}
@@ -138,8 +133,10 @@ export function LoginForm({
             >
               <option value="Student">Student</option>
               <option value="Staff">Staff</option>
-              <option value="Parent">Parent</option>
             </select>
+            <FieldDescription>
+              Parent accounts are invite-only from a student guardian link.
+            </FieldDescription>
           </Field>
           {error && (
             <p className="text-sm text-destructive" role="alert">
@@ -184,18 +181,22 @@ export function LoginForm({
             name="email"
             type="email"
             placeholder="m@example.com"
-            autoComplete="email"
             required
+            autoComplete="email"
+            className="bg-background"
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor="password">Password</FieldLabel>
+          <div className="flex items-center">
+            <FieldLabel htmlFor="password">Password</FieldLabel>
+          </div>
           <Input
             id="password"
             name="password"
             type="password"
-            autoComplete="current-password"
             required
+            autoComplete="current-password"
+            className="bg-background"
           />
         </Field>
         {error && (
