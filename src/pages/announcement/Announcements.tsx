@@ -1,12 +1,45 @@
+import { useEffect, useState } from "react"
+import { toast } from "sonner"
+import { Loader2, Megaphone } from "lucide-react"
+
 import { SideBar } from "@/components/layout/SideBar"
 import TopBar from "@/components/layout/TopBar"
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { useDashboardContext } from "@/components/Auth/dashboard-context"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { getAuthErrorMessage } from "@/lib/auth"
+import {
+  listAnnouncements,
+  type InstitutionAnnouncement,
+} from "@/lib/announcements"
 
 function Announcements() {
-  const { data } = useDashboardContext()
+  const [items, setItems] = useState<InstitutionAnnouncement[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      try {
+        const list = await listAnnouncements()
+        if (!cancelled) setItems(list)
+      } catch (error) {
+        if (!cancelled) toast.error(getAuthErrorMessage(error))
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <SidebarProvider>
@@ -14,42 +47,60 @@ function Announcements() {
       <SidebarInset>
         <header className="flex h-16 shrink-0 items-center gap-2 border-b">
           <div className="flex items-center gap-2 px-3">
-            <TopBar />
+            <TopBar title="Announcements" />
           </div>
         </header>
 
-        <main className="p-4">
-          <div className="grid gap-4">
-            {data.announcements.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                No announcements are available in Firebase.
-              </p>
-            )}
-            {data.announcements.map((announcement) => (
-              <Card
-                key={announcement.id}
-                className="flex h-40 flex-col items-center justify-center"
-              >
-                <CardHeader>
-                  <CardTitle className="flex w-full items-center justify-between gap-3">
-                    <Badge>{announcement.badge}</Badge>
-                    <div className="flex flex-row gap-3 text-sm text-white">
-                      <span>{announcement.source}</span>
-                      <span>{announcement.dateCreated}</span>
-                    </div>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="flex flex-col items-center justify-center">
-                  <h1 className="mt-1 mb-1 text-center text-lg font-semibold">
-                    {announcement.title}
-                  </h1>
-                  <p className="mt-1 mb-1 max-w-2xl text-center text-white">
-                    {announcement.description}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
+        <main className="mx-auto w-full max-w-3xl space-y-4 p-4 md:p-6">
+          <div>
+            <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
+              <Megaphone className="size-5" />
+              Campus announcements
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Official notices from the university administration.
+            </p>
           </div>
+
+          {loading ? (
+            <Card className="border-dashed">
+              <CardContent className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+                Loading announcements…
+              </CardContent>
+            </Card>
+          ) : items.length === 0 ? (
+            <Card className="border-dashed">
+              <CardHeader>
+                <CardTitle>No announcements</CardTitle>
+                <CardDescription>
+                  When admin publishes a notice, it will appear here.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {items.map((announcement) => (
+                <Card key={announcement.id}>
+                  <CardHeader className="pb-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary">{announcement.badge}</Badge>
+                      {announcement.pinned ? <Badge>Pinned</Badge> : null}
+                      <span className="text-xs text-muted-foreground">
+                        {announcement.source} · {announcement.dateCreated}
+                      </span>
+                    </div>
+                    <CardTitle className="text-lg">{announcement.title}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+                      {announcement.description}
+                    </p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </main>
       </SidebarInset>
     </SidebarProvider>
