@@ -3,10 +3,8 @@ import {
   deleteDoc,
   doc,
   getDocs,
-  query,
   serverTimestamp,
   setDoc,
-  where,
 } from "firebase/firestore"
 
 import { db } from "@/lib/firebase"
