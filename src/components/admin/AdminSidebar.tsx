@@ -1,6 +1,8 @@
 import {
   Award,
   BookOpen,
+  Building,
+  Building2,
   CalendarCheck,
   ClipboardList,
   Clock,
@@ -8,6 +10,7 @@ import {
   FileSearch,
   FileText,
   Home,
+  IdCard,
   LayoutDashboard,
   Library,
   LogOut,
@@ -51,18 +54,32 @@ const sections = [
     title: "OVERVIEW",
     url: "/admin",
     icon: LayoutDashboard,
+    items: [{ title: "Dashboard", url: "/admin", icon: LayoutDashboard }],
+  },
+  {
+    title: "STRUCTURE",
+    url: "/admin/faculties",
+    icon: Building2,
     items: [
-      { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
-      { title: "Directory", url: "/admin/students", icon: Users },
+      { title: "Faculties", url: "/admin/faculties", icon: Building2 },
+      { title: "Departments", url: "/admin/departments", icon: Building },
+      { title: "Courses", url: "/admin/courses", icon: BookOpen },
+    ],
+  },
+  {
+    title: "STUDENTS",
+    url: "/admin/students",
+    icon: Users,
+    items: [
+      { title: "Directory & matric", url: "/admin/students", icon: IdCard },
       { title: "Student profile", url: "/admin/profile", icon: ShieldCheck },
     ],
   },
   {
     title: "ACADEMIC",
-    url: "/admin/courses",
-    icon: BookOpen,
+    url: "/admin/attendance",
+    icon: ClipboardList,
     items: [
-      { title: "Courses", url: "/admin/courses", icon: ClipboardList },
       { title: "Attendance", url: "/admin/attendance", icon: CalendarCheck },
       { title: "Exams", url: "/admin/exams", icon: Clock },
       { title: "Assignments", url: "/admin/assignments", icon: FileText },
@@ -91,9 +108,7 @@ const sections = [
   },
 ]
 
-export function AdminSidebar(
-  props: React.ComponentProps<typeof Sidebar>
-) {
+export function AdminSidebar(props: React.ComponentProps<typeof Sidebar>) {
   const { profile } = useDashboardContext()
   const { selectedUid } = useAdminRecord()
   const { pathname } = useLocation()
@@ -106,9 +121,15 @@ export function AdminSidebar(
     .join("")
 
   function href(path: string) {
-    return selectedUid
-      ? `${path}?student=${encodeURIComponent(selectedUid)}`
-      : path
+    const structure = [
+      "/admin",
+      "/admin/faculties",
+      "/admin/departments",
+      "/admin/courses",
+      "/admin/students",
+    ]
+    if (structure.includes(path) || !selectedUid) return path
+    return `${path}?student=${encodeURIComponent(selectedUid)}`
   }
 
   async function handleLogout() {
@@ -140,7 +161,13 @@ export function AdminSidebar(
           <SidebarMenu>
             {sections.map((section) => (
               <SidebarMenuItem key={section.title}>
-                <SidebarMenuButton asChild isActive={pathname === section.url}>
+                <SidebarMenuButton
+                  asChild
+                  isActive={
+                    pathname === section.url ||
+                    section.items.some((item) => pathname === item.url)
+                  }
+                >
                   <Link to={href(section.url)} className="font-medium">
                     <section.icon />
                     {section.title}
@@ -149,10 +176,7 @@ export function AdminSidebar(
                 <SidebarMenuSub>
                   {section.items.map((item) => (
                     <SidebarMenuSubItem key={item.title}>
-                      <SidebarMenuSubButton
-                        asChild
-                        isActive={pathname === item.url}
-                      >
+                      <SidebarMenuSubButton asChild isActive={pathname === item.url}>
                         <Link to={href(item.url)}>
                           <item.icon />
                           {item.title}
@@ -171,25 +195,43 @@ export function AdminSidebar(
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <SidebarMenuButton>
-                  <Avatar>
-                    <AvatarFallback>{initials || "A"}</AvatarFallback>
+                <SidebarMenuButton
+                  size="lg"
+                  className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                >
+                  <Avatar className="size-8 rounded-lg">
+                    <AvatarFallback className="rounded-lg">{initials || "AD"}</AvatarFallback>
                   </Avatar>
-                  {profile.displayName}
+                  <div className="grid flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-medium">{profile.displayName}</span>
+                    <span className="truncate text-xs">{profile.role}</span>
+                  </div>
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuGroup>
-                  <DropdownMenuLabel>
-                    {profile.role} account
-                  </DropdownMenuLabel>
-                  <DropdownMenuItem disabled>{profile.email}</DropdownMenuItem>
-                </DropdownMenuGroup>
+              <DropdownMenuContent
+                className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+                side="bottom"
+                align="end"
+                sideOffset={4}
+              >
+                <DropdownMenuLabel className="p-0 font-normal">
+                  <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+                    <Avatar className="size-8 rounded-lg">
+                      <AvatarFallback className="rounded-lg">{initials || "AD"}</AvatarFallback>
+                    </Avatar>
+                    <div className="grid flex-1 text-left text-sm leading-tight">
+                      <span className="truncate font-medium">{profile.displayName}</span>
+                      <span className="truncate text-xs">{profile.email}</span>
+                    </div>
+                  </div>
+                </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => void handleLogout()}>
-                  <LogOut />
-                  Log out
-                </DropdownMenuItem>
+                <DropdownMenuGroup>
+                  <DropdownMenuItem onClick={() => void handleLogout()}>
+                    <LogOut />
+                    Log out
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
               </DropdownMenuContent>
             </DropdownMenu>
           </SidebarMenuItem>
