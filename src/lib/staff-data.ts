@@ -18,6 +18,11 @@ import {
   type StudentDirectoryEntry,
   listStudentsWithMatric,
 } from "@/lib/institution-data"
+import {
+  assignmentsAsCourses,
+  listCourseEnrollments,
+  listStaffAssignments,
+} from "@/lib/staff-assignments"
 
 export interface StaffRosterRow {
   uid: string
@@ -26,10 +31,8 @@ export interface StaffRosterRow {
   matricNumber?: string
   level?: string
   departmentName?: string
-  /** Attendance % for this course */
   attendancePercentage: number
   attendanceProgress: number
-  /** Scores for this course */
   units: number
   ca: number
   exam: number
@@ -41,16 +44,28 @@ function courseKey(code: string) {
   return code.trim().toUpperCase()
 }
 
-function matchesCourse(
-  code: string,
-  rowCode: string | undefined
-): boolean {
+function matchesCourse(code: string, rowCode: string | undefined): boolean {
   if (!rowCode) return false
   return courseKey(rowCode) === courseKey(code)
 }
 
-export async function listStaffCourses(): Promise<InstitutionCourse[]> {
-  return listInstitutionCourses()
+/**
+ * Courses assigned to this staff member by Admin (Staff Manager).
+ * Admins with no personal assignments still see the full catalog for support.
+ */
+export async function listStaffCourses(
+  staffUid: string,
+  role?: string
+): Promise<InstitutionCourse[]> {
+  const assignments = await listStaffAssignments(staffUid)
+  if (assignments.length > 0) {
+    return assignmentsAsCourses(assignments)
+  }
+  // Admin without explicit assignments can browse the full catalog
+  if (role === "Admin") {
+    return listInstitutionCourses()
+  }
+  return []
 }
 
 export async function listStaffStudents(): Promise<StudentDirectoryEntry[]> {
@@ -64,9 +79,8 @@ export async function listStaffDirectory(): Promise<UserProfile[]> {
 }
 
 /**
- * Build a roster for a course by scanning student dashboardData for matching
- * results / attendance rows. Students without the course are omitted unless
- * later added via ensureStudentOnCourse.
+ * Roster = students enrolled on the course (Admin Staff Manager),
+ * merged with any existing scores/attendance on their dashboard.
  */
 export async function loadCourseRoster(
   courseCode: string,
@@ -75,20 +89,41 @@ export async function loadCourseRoster(
   const code = courseKey(courseCode)
   if (!code) return []
 
+  const enrollments = await listCourseEnrollments(code)
   const students = await listStaffStudents()
+  const byUid = new Map(students.map((s) => [s.uid, s]))
+
+  // Prefer official enrollments; fall back to dashboard scan if none yet
+  const baseUids =
+    enrollments.length > 0
+      ? enrollments.map((e) => e.studentUid)
+      : students.map((s) => s.uid)
+
   const rows: StaffRosterRow[] = []
 
   await Promise.all(
-    students.map(async (student) => {
+    baseUids.map(async (uid) => {
+      const enrollment = enrollments.find((e) => e.studentUid === uid)
+      const student = byUid.get(uid)
+      const displayName =
+        enrollment?.studentName || student?.displayName || "Student"
+      const email = enrollment?.studentEmail || student?.email || ""
+      const matricNumber =
+        enrollment?.matricNumber || student?.matricNumber
+
       try {
-        const data = await getDashboardData(student.uid)
+        const data = await getDashboardData(uid)
         const result = data.results.find((r) => matchesCourse(code, r.code))
         const attendance = data.attendanceCourses.find((a) =>
           matchesCourse(code, a.coursecode)
         )
-        if (!result && !attendance) return
 
-        const units = result?.units ?? course?.units ?? 3
+        // If no enrollments collection yet, only include students who already
+        // have this course on their record.
+        if (enrollments.length === 0 && !result && !attendance) return
+
+        const units =
+          result?.units ?? enrollment?.units ?? course?.units ?? 3
         const ca = result?.ca ?? 0
         const exam = result?.exam ?? 0
         const total = ca + exam
@@ -107,12 +142,12 @@ export async function loadCourseRoster(
                     : "F")
 
         rows.push({
-          uid: student.uid,
-          displayName: student.displayName,
-          email: student.email,
-          matricNumber: student.matricNumber,
-          level: student.level,
-          departmentName: student.departmentName,
+          uid,
+          displayName,
+          email,
+          matricNumber,
+          level: student?.level,
+          departmentName: student?.departmentName,
           attendancePercentage: attendance?.percentage ?? 0,
           attendanceProgress: attendance?.progress ?? 0,
           units,
@@ -120,10 +155,29 @@ export async function loadCourseRoster(
           exam,
           grade,
           courseTitle:
-            result?.course || course?.title || code,
+            result?.course ||
+            enrollment?.courseTitle ||
+            course?.title ||
+            code,
         })
       } catch {
-        // Skip students whose dashboard cannot be read
+        if (enrollment) {
+          rows.push({
+            uid,
+            displayName,
+            email,
+            matricNumber,
+            level: student?.level,
+            departmentName: student?.departmentName,
+            attendancePercentage: 0,
+            attendanceProgress: 0,
+            units: enrollment.units || course?.units || 3,
+            ca: 0,
+            exam: 0,
+            grade: "F",
+            courseTitle: enrollment.courseTitle || course?.title || code,
+          })
+        }
       }
     })
   )
@@ -131,7 +185,6 @@ export async function loadCourseRoster(
   return rows.sort((a, b) => a.displayName.localeCompare(b.displayName))
 }
 
-/** Ensure a student has results + attendance rows for the course, then return refreshed roster row. */
 export async function ensureStudentOnCourse(
   studentUid: string,
   course: InstitutionCourse
@@ -204,7 +257,6 @@ export async function saveAttendanceForCourse(
       if (idx >= 0) attendanceCourses[idx] = row
       else attendanceCourses.push(row)
 
-      // Overall attendance = average of course percentages when present
       const overall =
         attendanceCourses.length > 0
           ? Math.round(
@@ -316,7 +368,6 @@ export async function saveExamForStudents(
   )
 }
 
-/** Quick check that dashboardData doc exists (optional). */
 export async function hasDashboard(uid: string): Promise<boolean> {
   const snap = await getDoc(doc(db, "dashboardData", uid))
   return snap.exists()

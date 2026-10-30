@@ -9,6 +9,7 @@ import {
 import { useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
 
+import { useDashboardContext } from "@/components/Auth/dashboard-context"
 import { getAuthErrorMessage } from "@/lib/auth"
 import {
   ensureStudentOnCourse,
@@ -42,6 +43,7 @@ interface StaffContextValue {
 const StaffContext = createContext<StaffContextValue | null>(null)
 
 export function StaffProvider({ children }: { children: React.ReactNode }) {
+  const { profile } = useDashboardContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const [courses, setCourses] = useState<InstitutionCourse[]>([])
   const [coursesStatus, setCoursesStatus] = useState<LoadStatus>("loading")
@@ -62,7 +64,7 @@ export function StaffProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let active = true
     setCoursesStatus("loading")
-    listStaffCourses()
+    listStaffCourses(profile.uid, profile.role)
       .then((items) => {
         if (!active) return
         setCourses(items)
@@ -76,7 +78,7 @@ export function StaffProvider({ children }: { children: React.ReactNode }) {
     return () => {
       active = false
     }
-  }, [])
+  }, [profile.uid, profile.role])
 
   useEffect(() => {
     let active = true
@@ -145,7 +147,7 @@ export function StaffProvider({ children }: { children: React.ReactNode }) {
       setAdding(true)
       try {
         await ensureStudentOnCourse(uid, selectedCourse)
-        toast.success("Student added to course roster.")
+        toast.success("Student score sheet prepared on their dashboard.")
         await refreshRoster()
       } catch (error) {
         toast.error(getAuthErrorMessage(error))
