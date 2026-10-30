@@ -1,12 +1,9 @@
 /* UniJos Student Dashboard — offline shell cache */
-const CACHE = "unijos-shell-v1"
+const CACHE = "unijos-shell-v2"
 const PRECACHE = [
   "/",
   "/index.html",
   "/manifest.webmanifest",
-  "/icons/icon-192.png",
-  "/icons/icon-512.png",
-  "/icons/apple-touch-icon.png",
   "/unijos_logo.png",
 ]
 
