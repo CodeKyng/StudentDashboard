@@ -8,6 +8,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore"
 
+import type { UserRole } from "@/lib/auth"
 import { db } from "@/lib/firebase"
 
 export interface Faculty {
@@ -54,6 +55,10 @@ export interface StudentDirectoryEntry {
   level?: string
   session?: string
 }
+
+/** Roles an Admin may assign from the directory (Parent stays invite-only). */
+export const assignableRoles = ["Student", "Staff", "Admin"] as const
+export type AssignableRole = (typeof assignableRoles)[number]
 
 function asString(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback
@@ -254,6 +259,22 @@ export async function assignStudentIdentity(
 
   await updateDoc(doc(db, "users", uid), {
     ...clean,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+/**
+ * Admin-only role change. Parent is never assigned here (invite link only).
+ */
+export async function assignUserRole(
+  uid: string,
+  role: AssignableRole
+): Promise<void> {
+  if (!(assignableRoles as readonly string[]).includes(role)) {
+    throw new Error("Invalid role. Choose Student, Staff, or Admin.")
+  }
+  await updateDoc(doc(db, "users", uid), {
+    role: role as UserRole,
     updatedAt: serverTimestamp(),
   })
 }
