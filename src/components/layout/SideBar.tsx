@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import {
   Award,
   Book,
@@ -12,12 +12,16 @@ import {
   Home,
   LayoutDashboard,
   LifeBuoy,
+  LogOut,
   Megaphone,
   ShieldCheck,
   Clock,
   ClipboardList,
   Users,
 } from "lucide-react"
+import { toast } from "sonner"
+
+import { getAuthErrorMessage, signOutUser } from "@/lib/auth"
 
 import {
   Sidebar,
@@ -142,6 +146,21 @@ const navigation = {
 
 export function SideBar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { data, profile } = useDashboardContext()
+  const navigate = useNavigate()
+  const [loggingOut, setLoggingOut] = React.useState(false)
+
+  async function handleLogout() {
+    if (loggingOut) return
+    setLoggingOut(true)
+    try {
+      await signOutUser()
+      navigate("/login", { replace: true })
+    } catch (error) {
+      toast.error(getAuthErrorMessage(error))
+      setLoggingOut(false)
+    }
+  }
+
   const userInitials = profile.displayName
     .split(/\s+/)
     .filter(Boolean)
@@ -247,16 +266,25 @@ export function SideBar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   {profile.displayName}
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
-              <DropdownMenuContent>
+              <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuGroup>
                   <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                  <DropdownMenuItem>Profile</DropdownMenuItem>
+                  <DropdownMenuItem disabled>
+                    {profile.email}
+                  </DropdownMenuItem>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
-                <DropdownMenuGroup>
-                  <DropdownMenuItem>Settings</DropdownMenuItem>
-                  <DropdownMenuItem>LogOut</DropdownMenuItem>
-                </DropdownMenuGroup>
+                <DropdownMenuItem
+                  variant="destructive"
+                  disabled={loggingOut}
+                  onSelect={(e) => {
+                    e.preventDefault()
+                    void handleLogout()
+                  }}
+                >
+                  <LogOut className="size-4" />
+                  {loggingOut ? "Signing out…" : "Log out"}
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </SidebarMenuItem>
