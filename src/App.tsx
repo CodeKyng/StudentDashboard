@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom"
 import { RequireAuth } from "./components/Auth/RequireAuth"
 import { RequireRole } from "./components/Auth/RequireRole"
 import { AdminShell } from "./components/admin/AdminShell"
+import { StaffShell } from "./components/staff/StaffShell"
 import Announcements from "./pages/announcement/Announcements"
 import Assignments from "./pages/assignments/Assignments"
 import AttendanceView from "./pages/attendance/AttendanceView"
@@ -37,6 +38,11 @@ import AdminHostel from "./pages/admin/AdminHostel"
 import AdminLibrary from "./pages/admin/AdminLibrary"
 import AdminTranscript from "./pages/admin/AdminTranscript"
 import AdminAnnouncements from "./pages/admin/AdminAnnouncements"
+import StaffDashboard from "./pages/staff/StaffDashboard"
+import StaffAttendance from "./pages/staff/StaffAttendance"
+import StaffScores from "./pages/staff/StaffScores"
+import StaffAssignments from "./pages/staff/StaffAssignments"
+import StaffExams from "./pages/staff/StaffExams"
 
 function App() {
   return (
@@ -64,6 +70,16 @@ function App() {
 
           <Route element={<RequireRole allow={["Parent"]} />}>
             <Route path="/parent" element={<ParentDashboard />} />
+          </Route>
+
+          <Route element={<RequireRole allow={["Staff", "Admin"]} />}>
+            <Route path="/staff" element={<StaffShell />}>
+              <Route index element={<StaffDashboard />} />
+              <Route path="attendance" element={<StaffAttendance />} />
+              <Route path="scores" element={<StaffScores />} />
+              <Route path="assignments" element={<StaffAssignments />} />
+              <Route path="exams" element={<StaffExams />} />
+            </Route>
           </Route>
 
           <Route element={<RequireRole allow={["Admin", "Staff"]} />}>
