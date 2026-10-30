@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { toast } from "sonner"
 import {
+  AlertTriangle,
   BookOpen,
   Check,
   GraduationCap,
@@ -10,7 +11,6 @@ import {
   Loader2,
   Lock,
   Search,
-  X,
 } from "lucide-react"
 
 import { SideBar } from "@/components/layout/SideBar"
@@ -34,16 +34,27 @@ import {
   type InstitutionCourse,
 } from "@/lib/institution-data"
 import { saveRegisteredCourses } from "@/lib/student-data"
+import {
+  getMaxUnitsForPlacement,
+  isFailedGrade,
+} from "@/lib/unit-limits"
 import { cn } from "@/lib/utils"
 
-const MAX_UNITS = 18
+type OfferKind = "current" | "failed"
+
+interface CourseOffer extends InstitutionCourse {
+  kind: OfferKind
+  priorGrade?: string
+}
 
 function GateItem({ ok, label }: { ok: boolean; label: string }) {
   return (
     <li
       className={cn(
         "flex items-center gap-2 rounded-lg border px-3 py-2",
-        ok ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-900/40" : "bg-muted/40"
+        ok
+          ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-900/40"
+          : "bg-muted/40"
       )}
     >
       {ok ? (
@@ -56,12 +67,18 @@ function GateItem({ ok, label }: { ok: boolean; label: string }) {
   )
 }
 
+function courseKey(code: string) {
+  return code.trim().toUpperCase()
+}
+
 function CourseRegistration() {
   const { data, identity, profile, setData, refresh } = useDashboardContext()
-  const [catalog, setCatalog] = useState<InstitutionCourse[]>([])
+  const [offers, setOffers] = useState<CourseOffer[]>([])
   const [catalogLoading, setCatalogLoading] = useState(true)
+  const [maxUnits, setMaxUnits] = useState(18)
+  const [limitMatched, setLimitMatched] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(() => {
-    return new Set(data.courses.map((c) => c.code.toUpperCase()))
+    return new Set(data.courses.map((c) => courseKey(c.code)))
   })
   const [query, setQuery] = useState("")
   const [saving, setSaving] = useState(false)
@@ -77,7 +94,8 @@ function CourseRegistration() {
       identity.departmentId?.trim() ||
       data.department?.trim()
   )
-  const placementReady = hasMatric && hasFaculty && hasDepartment
+  const hasLevel = Boolean(identity.level?.trim() || data.level?.trim())
+  const placementReady = hasMatric && hasFaculty && hasDepartment && hasLevel
   const eligible = data.registrationEligible === true
   const canRegister = placementReady && eligible
 
@@ -86,80 +104,171 @@ function CourseRegistration() {
   const levelLabel = identity.level || data.level || "—"
   const sessionLabel = identity.session || data.session || "—"
 
-  const loadCatalog = useCallback(async () => {
+  const loadOffers = useCallback(async () => {
     setCatalogLoading(true)
     try {
-      const all = await listInstitutionCourses()
+      const [all, limitInfo] = await Promise.all([
+        listInstitutionCourses(),
+        getMaxUnitsForPlacement({
+          facultyId: identity.facultyId,
+          departmentId: identity.departmentId,
+          level: identity.level || data.level,
+        }),
+      ])
+      setMaxUnits(limitInfo.maxUnits)
+      setLimitMatched(limitInfo.matched)
+
+      const deptId = (identity.departmentId || "").toLowerCase()
       const deptName = (
         identity.departmentName ||
         data.department ||
         ""
       ).toLowerCase()
-      const deptId = (identity.departmentId || "").toLowerCase()
       const level = (identity.level || data.level || "").toLowerCase()
 
-      let scoped = all.filter((c) => {
+      const byDept = all.filter((c) => {
+        const byId = deptId && c.departmentId?.toLowerCase() === deptId
         const byName =
           deptName && c.departmentName?.toLowerCase() === deptName
-        const byId = deptId && c.departmentId?.toLowerCase() === deptId
-        return byName || byId
+        return byId || byName
       })
-      if (scoped.length === 0) scoped = all
 
-      if (level) {
-        const levelScoped = scoped.filter(
-          (c) => !c.level || c.level.toLowerCase() === level
-        )
-        if (levelScoped.length > 0) scoped = levelScoped
+      const currentLevel = byDept.filter(
+        (c) => !c.level || c.level.toLowerCase() === level
+      )
+
+      const failedCodes = new Set(
+        data.results
+          .filter((r) => isFailedGrade(r.grade))
+          .map((r) => courseKey(r.code))
+      )
+
+      const failedOffers: CourseOffer[] = []
+      for (const code of failedCodes) {
+        const inst =
+          all.find((c) => courseKey(c.code) === code) ||
+          byDept.find((c) => courseKey(c.code) === code)
+        const result = data.results.find((r) => courseKey(r.code) === code)
+        if (inst) {
+          failedOffers.push({
+            ...inst,
+            kind: "failed",
+            priorGrade: result?.grade,
+          })
+        } else if (result) {
+          failedOffers.push({
+            id: code,
+            code: result.code,
+            title: result.course,
+            description: "Failed course — re-register",
+            units: result.units || 3,
+            level: levelLabel,
+            semester: "",
+            departmentId: identity.departmentId || "",
+            departmentName: departmentLabel,
+            facultyId: identity.facultyId || "",
+            facultyName: facultyLabel,
+            prerequisites: [],
+            kind: "failed",
+            priorGrade: result.grade,
+          })
+        }
       }
 
-      setCatalog(scoped)
+      const currentCodes = new Set(currentLevel.map((c) => courseKey(c.code)))
+      const offersList: CourseOffer[] = [
+        ...currentLevel.map((c) => ({
+          ...c,
+          kind: "current" as const,
+          priorGrade: failedCodes.has(courseKey(c.code))
+            ? data.results.find((r) => courseKey(r.code) === courseKey(c.code))
+                ?.grade
+            : undefined,
+        })),
+        ...failedOffers.filter((f) => !currentCodes.has(courseKey(f.code))),
+      ]
+
+      // If a current-level course was also failed, mark as failed for UI badge
+      const merged = offersList.map((o) => {
+        if (failedCodes.has(courseKey(o.code)) && o.kind === "current") {
+          return {
+            ...o,
+            kind: "failed" as const,
+            priorGrade:
+              o.priorGrade ||
+              data.results.find((r) => courseKey(r.code) === courseKey(o.code))
+                ?.grade,
+          }
+        }
+        return o
+      })
+
+      setOffers(
+        merged.sort((a, b) => {
+          if (a.kind !== b.kind) return a.kind === "failed" ? -1 : 1
+          return a.code.localeCompare(b.code)
+        })
+      )
     } catch (error) {
       toast.error(getAuthErrorMessage(error))
-      setCatalog([])
+      setOffers([])
     } finally {
       setCatalogLoading(false)
     }
   }, [
     data.department,
     data.level,
+    data.results,
+    departmentLabel,
+    facultyLabel,
     identity.departmentId,
     identity.departmentName,
+    identity.facultyId,
     identity.level,
+    levelLabel,
   ])
 
   useEffect(() => {
-    if (canRegister) void loadCatalog()
+    if (canRegister) void loadOffers()
     else setCatalogLoading(false)
-  }, [canRegister, loadCatalog])
+  }, [canRegister, loadOffers])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return catalog
-    return catalog.filter(
+    if (!q) return offers
+    return offers.filter(
       (c) =>
         c.code.toLowerCase().includes(q) ||
         c.title.toLowerCase().includes(q) ||
         c.description.toLowerCase().includes(q)
     )
-  }, [catalog, query])
+  }, [offers, query])
 
   const selectedUnits = useMemo(() => {
     return Array.from(selected).reduce((sum, code) => {
-      const course = catalog.find(
-        (c) => c.code.toUpperCase() === code.toUpperCase()
-      )
+      const course = offers.find((c) => courseKey(c.code) === code)
       return sum + (course?.units || 0)
     }, 0)
-  }, [selected, catalog])
+  }, [selected, offers])
 
   function toggle(code: string) {
     if (!canRegister) return
-    const key = code.toUpperCase()
+    const key = courseKey(code)
     setSelected((prev) => {
       const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
+      if (next.has(key)) {
+        next.delete(key)
+        return next
+      }
+      const course = offers.find((c) => courseKey(c.code) === key)
+      const nextUnits = selectedUnits + (course?.units || 0)
+      if (nextUnits > maxUnits) {
+        toast.error(
+          `Unit limit is ${maxUnits}. Adding ${code} would exceed the cap set by admin.`
+        )
+        return prev
+      }
+      next.add(key)
       return next
     })
   }
@@ -173,15 +282,14 @@ function CourseRegistration() {
       toast.error("Select at least one course.")
       return
     }
-    if (selectedUnits > MAX_UNITS) {
-      toast.error(`You cannot exceed ${MAX_UNITS} units.`)
+    if (selectedUnits > maxUnits) {
+      toast.error(`You cannot exceed ${maxUnits} units.`)
       return
     }
+
     const enrolled: DashboardCourse[] = Array.from(selected)
-      .map((code) =>
-        catalog.find((c) => c.code.toUpperCase() === code.toUpperCase())
-      )
-      .filter((c): c is InstitutionCourse => Boolean(c))
+      .map((code) => offers.find((c) => courseKey(c.code) === code))
+      .filter((c): c is CourseOffer => Boolean(c))
       .map((c) => ({
         code: c.code,
         title: c.title,
@@ -195,10 +303,10 @@ function CourseRegistration() {
         displayName: profile.displayName,
         email: profile.email,
         matricNumber: identity.matricNumber,
-        institutionCourses: catalog,
+        institutionCourses: offers,
       })
       setData((prev) => ({ ...prev, courses: enrolled }))
-      toast.success("Courses registered. Lecturers for these courses can now see you.")
+      toast.success("Registration submitted.")
       await refresh()
     } catch (error) {
       toast.error(getAuthErrorMessage(error))
@@ -206,6 +314,9 @@ function CourseRegistration() {
       setSaving(false)
     }
   }
+
+  const currentCount = filtered.filter((o) => o.kind === "current").length
+  const failedCount = filtered.filter((o) => o.kind === "failed").length
 
   return (
     <SidebarProvider>
@@ -222,7 +333,7 @@ function CourseRegistration() {
             <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-1">
                 <p className="text-xs font-medium uppercase tracking-wide text-cyan-100">
-                  Self registration
+                  Course registration form
                 </p>
                 <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
                   {profile.displayName}
@@ -235,8 +346,7 @@ function CourseRegistration() {
                   ) : (
                     <span className="text-amber-200">Matric not assigned</span>
                   )}
-                  {" · "}
-                  {levelLabel} · {sessionLabel}
+                  {" · Level "}{levelLabel} · {sessionLabel}
                 </p>
                 <p className="text-sm text-cyan-100">
                   {facultyLabel}
@@ -246,34 +356,18 @@ function CourseRegistration() {
               <div className="flex flex-wrap gap-2">
                 <Badge
                   variant="secondary"
-                  className={
-                    hasMatric
-                      ? "bg-white/15 text-white hover:bg-white/20"
-                      : "bg-amber-500/30 text-white hover:bg-amber-500/40"
-                  }
+                  className="bg-white/15 text-white hover:bg-white/20"
                 >
-                  <IdCard className="size-3.5" />
-                  {hasMatric ? "Matric set" : "Need matric"}
-                </Badge>
-                <Badge
-                  variant="secondary"
-                  className={
-                    hasFaculty && hasDepartment
-                      ? "bg-white/15 text-white hover:bg-white/20"
-                      : "bg-amber-500/30 text-white hover:bg-amber-500/40"
-                  }
-                >
-                  <GraduationCap className="size-3.5" />
-                  {hasFaculty && hasDepartment
-                    ? "Faculty & dept"
-                    : "Need faculty/dept"}
+                  <Layers className="size-3.5" />
+                  Max {maxUnits} units
+                  {!limitMatched ? " (default)" : ""}
                 </Badge>
                 <Badge
                   variant="secondary"
                   className={
                     eligible
                       ? "bg-white/15 text-white hover:bg-white/20"
-                      : "bg-amber-500/30 text-white hover:bg-amber-500/40"
+                      : "bg-amber-500/30 text-white"
                   }
                 >
                   <BookOpen className="size-3.5" />
@@ -285,21 +379,19 @@ function CourseRegistration() {
 
           {!placementReady ? (
             <Card className="border-dashed">
-              <CardHeader className="text-center sm:text-left">
-                <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-full bg-muted sm:mx-0">
-                  <Lock className="size-5 text-muted-foreground" />
-                </div>
-                <CardTitle>Course catalog is locked</CardTitle>
-                <CardDescription className="text-base">
-                  An administrator must assign your matriculation number and
-                  faculty / department before you can register courses yourself.
+              <CardHeader>
+                <CardTitle>Registration locked</CardTitle>
+                <CardDescription>
+                  Admin must set matric, faculty, department, and level before
+                  the form opens.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                <ul className="grid gap-2 text-sm sm:grid-cols-3">
+                <ul className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
                   <GateItem ok={hasMatric} label="Matriculation number" />
                   <GateItem ok={hasFaculty} label="Faculty" />
                   <GateItem ok={hasDepartment} label="Department" />
+                  <GateItem ok={hasLevel} label="Level" />
                 </ul>
                 <Button variant="outline" asChild>
                   <Link to="/dashboard">Back to dashboard</Link>
@@ -311,31 +403,32 @@ function CourseRegistration() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-amber-900 dark:text-amber-100">
                   <Lock className="size-4" />
-                  Placement complete — registration not opened
+                  Registration not opened
                 </CardTitle>
                 <CardDescription>
-                  Your matric and department are set. An administrator must mark
-                  you registration eligible for this session before the catalog
-                  opens.
+                  Placement is complete. Admin must mark you registration
+                  eligible for this session.
                 </CardDescription>
               </CardHeader>
             </Card>
           ) : (
-            <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
+            <form
+              className="grid gap-6 lg:grid-cols-[1fr_280px]"
+              onSubmit={(e) => {
+                e.preventDefault()
+                void handleSubmit()
+              }}
+            >
               <div className="space-y-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h2 className="text-lg font-semibold tracking-tight">
-                      Available courses
+                      Select courses
                     </h2>
                     <p className="text-sm text-muted-foreground">
-                      Select courses for {departmentLabel}. You register yourself
-                      — admin does not enroll you.
-                      {catalogLoading
-                        ? " Loading catalog…"
-                        : catalog.length === 0
-                          ? " No courses published yet."
-                          : ""}
+                      Courses for {departmentLabel} · Level {levelLabel}. Tick
+                      this semester&apos;s units and any failed courses to
+                      re-register.
                     </p>
                   </div>
                   <div className="relative w-full sm:max-w-xs">
@@ -349,73 +442,88 @@ function CourseRegistration() {
                   </div>
                 </div>
 
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <Badge variant="outline">{currentCount} this level</Badge>
+                  <Badge variant="secondary">
+                    <AlertTriangle className="size-3" />
+                    {failedCount} failed / carry-over
+                  </Badge>
+                </div>
+
                 {catalogLoading ? (
                   <Card className="border-dashed">
                     <CardContent className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
                       <Loader2 className="size-4 animate-spin" />
-                      Loading institution courses…
+                      Loading courses…
                     </CardContent>
                   </Card>
                 ) : filtered.length === 0 ? (
                   <Card className="border-dashed">
                     <CardContent className="py-10 text-center text-sm text-muted-foreground">
-                      No courses match. Admin should publish courses under
-                      Structure → Courses for your department.
+                      No courses for your department and level. Admin should
+                      publish the catalog under Structure → Courses.
                     </CardContent>
                   </Card>
                 ) : (
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-2 rounded-xl border bg-card p-2 sm:p-3">
                     {filtered.map((course) => {
-                      const isOn = selected.has(course.code.toUpperCase())
+                      const key = courseKey(course.code)
+                      const isOn = selected.has(key)
                       return (
-                        <button
-                          key={course.id || course.code}
-                          type="button"
-                          onClick={() => toggle(course.code)}
+                        <label
+                          key={`${course.kind}-${course.id || course.code}`}
                           className={cn(
-                            "rounded-xl border p-4 text-left transition-all hover:border-cyan-500/50 hover:shadow-sm",
+                            "flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors",
                             isOn
-                              ? "border-cyan-600 bg-cyan-50/80 ring-1 ring-cyan-600/30 dark:bg-cyan-950/40"
-                              : "bg-card"
+                              ? "border-cyan-600 bg-cyan-50/80 dark:bg-cyan-950/40"
+                              : "hover:bg-muted/40",
+                            course.kind === "failed" && !isOn
+                              ? "border-amber-200/80 dark:border-amber-900/50"
+                              : ""
                           )}
                         >
-                          <div className="flex items-start justify-between gap-2">
-                            <span className="font-mono text-sm font-semibold text-cyan-800 dark:text-cyan-300">
-                              {course.code}
-                            </span>
-                            <span
-                              className={cn(
-                                "flex size-6 shrink-0 items-center justify-center rounded-full border text-xs",
-                                isOn
-                                  ? "border-cyan-600 bg-cyan-600 text-white"
-                                  : "border-muted-foreground/30"
+                          <input
+                            type="checkbox"
+                            className="mt-1 size-4 accent-cyan-700"
+                            checked={isOn}
+                            onChange={() => toggle(course.code)}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-mono text-sm font-semibold">
+                                {course.code}
+                              </span>
+                              <Badge variant="outline" className="text-xs">
+                                {course.units} units
+                              </Badge>
+                              {course.semester ? (
+                                <Badge variant="secondary" className="text-xs">
+                                  {course.semester} semester
+                                </Badge>
+                              ) : null}
+                              {course.kind === "failed" && (
+                                <Badge
+                                  variant="destructive"
+                                  className="text-xs"
+                                >
+                                  Failed
+                                  {course.priorGrade
+                                    ? ` (${course.priorGrade})`
+                                    : ""}{" "}
+                                  — re-register
+                                </Badge>
                               )}
-                            >
-                              {isOn ? <Check className="size-3.5" /> : null}
-                            </span>
-                          </div>
-                          <p className="mt-1 font-medium leading-snug">
-                            {course.title}
-                          </p>
-                          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                            {course.description || "No description"}
-                          </p>
-                          <div className="mt-3 flex flex-wrap gap-1.5">
-                            <Badge variant="outline" className="text-xs">
-                              {course.units} units
-                            </Badge>
-                            {course.semester ? (
-                              <Badge variant="secondary" className="text-xs">
-                                {course.semester}
-                              </Badge>
-                            ) : null}
-                            {course.level ? (
-                              <Badge variant="secondary" className="text-xs">
-                                Level {course.level}
-                              </Badge>
+                            </div>
+                            <p className="mt-0.5 font-medium leading-snug">
+                              {course.title}
+                            </p>
+                            {course.description ? (
+                              <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                                {course.description}
+                              </p>
                             ) : null}
                           </div>
-                        </button>
+                        </label>
                       )
                     })}
                   </div>
@@ -427,10 +535,12 @@ function CourseRegistration() {
                   <CardHeader className="pb-3">
                     <CardTitle className="flex items-center gap-2 text-base">
                       <Layers className="size-4" />
-                      Your selection
+                      Unit load
                     </CardTitle>
                     <CardDescription>
-                      Max {MAX_UNITS} units this semester
+                      Cap set by admin for {departmentLabel} · Level{" "}
+                      {levelLabel}
+                      {!limitMatched ? " (using default)" : ""}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -439,15 +549,15 @@ function CourseRegistration() {
                         <p className="text-3xl font-bold tabular-nums">
                           {selectedUnits}
                           <span className="text-lg font-normal text-muted-foreground">
-                            /{MAX_UNITS}
+                            /{maxUnits}
                           </span>
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {selected.size} course
-                          {selected.size === 1 ? "" : "s"}
+                          {selected.size === 1 ? "" : "s"} selected
                         </p>
                       </div>
-                      {selectedUnits > MAX_UNITS && (
+                      {selectedUnits > maxUnits && (
                         <Badge variant="destructive">Over limit</Badge>
                       )}
                     </div>
@@ -455,27 +565,27 @@ function CourseRegistration() {
                       <div
                         className={cn(
                           "h-full rounded-full transition-all",
-                          selectedUnits > MAX_UNITS
+                          selectedUnits > maxUnits
                             ? "bg-destructive"
                             : "bg-cyan-600"
                         )}
                         style={{
                           width: `${Math.min(
                             100,
-                            (selectedUnits / MAX_UNITS) * 100
+                            (selectedUnits / Math.max(maxUnits, 1)) * 100
                           )}%`,
                         }}
                       />
                     </div>
-                    <ul className="max-h-48 space-y-1 overflow-y-auto text-sm">
+                    <ul className="max-h-56 space-y-1 overflow-y-auto text-sm">
                       {selected.size === 0 && (
                         <li className="text-muted-foreground">
-                          No courses selected
+                          Tick courses on the left
                         </li>
                       )}
                       {Array.from(selected).map((code) => {
-                        const c = catalog.find(
-                          (x) => x.code.toUpperCase() === code
+                        const c = offers.find(
+                          (x) => courseKey(x.code) === code
                         )
                         return (
                           <li
@@ -485,35 +595,28 @@ function CourseRegistration() {
                             <span className="truncate font-mono text-xs">
                               {code}
                             </span>
-                            <button
-                              type="button"
-                              className="text-muted-foreground hover:text-foreground"
-                              onClick={() => toggle(code)}
-                              aria-label={`Remove ${code}`}
-                            >
-                              <X className="size-3.5" />
-                            </button>
                             <span className="text-xs text-muted-foreground">
                               {c?.units ?? "—"}u
+                              {c?.kind === "failed" ? " · F" : ""}
                             </span>
                           </li>
                         )
                       })}
                     </ul>
                     <Button
+                      type="submit"
                       className="w-full"
                       size="lg"
                       disabled={
                         saving ||
                         selected.size === 0 ||
-                        selectedUnits > MAX_UNITS
+                        selectedUnits > maxUnits
                       }
-                      onClick={() => void handleSubmit()}
                     >
                       {saving ? (
                         <>
                           <Loader2 className="size-4 animate-spin" />
-                          Saving…
+                          Submitting…
                         </>
                       ) : (
                         <>
@@ -522,16 +625,17 @@ function CourseRegistration() {
                         </>
                       )}
                     </Button>
-                    {data.courses.length > 0 && (
-                      <p className="text-center text-xs text-muted-foreground">
-                        Currently enrolled: {data.courses.length} course
-                        {data.courses.length === 1 ? "" : "s"} on record
-                      </p>
-                    )}
+                    <p className="text-center text-xs text-muted-foreground">
+                      <IdCard className="mr-1 inline size-3" />
+                      {hasMatric ? identity.matricNumber : "No matric"}
+                      {" · "}
+                      <GraduationCap className="mr-1 inline size-3" />
+                      Level {levelLabel}
+                    </p>
                   </CardContent>
                 </Card>
               </aside>
-            </div>
+            </form>
           )}
         </main>
       </SidebarInset>
