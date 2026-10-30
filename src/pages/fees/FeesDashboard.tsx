@@ -1,3 +1,7 @@
+import { useState } from "react"
+import { toast } from "sonner"
+import { CreditCard, Loader2, ShieldAlert } from "lucide-react"
+
 import { SideBar } from "@/components/layout/SideBar"
 import TopBar from "@/components/layout/TopBar"
 import { useDashboardContext } from "@/components/Auth/dashboard-context"
@@ -21,23 +25,52 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { CreditCard } from "lucide-react"
+import { getAuthErrorMessage } from "@/lib/auth"
+import { startFeePaymentPlaceholder } from "@/lib/student-data"
 
 function FeesDashboard() {
-  const { data } = useDashboardContext()
+  const { data, identity, profile, setData, refresh } = useDashboardContext()
+  const [paying, setPaying] = useState(false)
+  const [lastRrr, setLastRrr] = useState<string | null>(null)
+
   const formatCurrency = (amount: number | undefined) =>
     amount === undefined
-      ? "Not provided"
-      : new Intl.NumberFormat(
-          "en-NG",
-          data.currencyCode
-            ? {
-                style: "currency",
-                currency: data.currencyCode,
-                maximumFractionDigits: 2,
-              }
-            : { maximumFractionDigits: 2 }
-        ).format(amount)
+      ? "—"
+      : new Intl.NumberFormat("en-NG", {
+          style: "currency",
+          currency: data.currencyCode || "NGN",
+          maximumFractionDigits: 2,
+        }).format(amount)
+
+  const amountDue = data.feesDue ?? data.schoolFeeAmount
+  const canPay =
+    amountDue !== undefined &&
+    amountDue > 0 &&
+    data.feeStatus !== "Paid"
+
+  async function handlePayPlaceholder() {
+    setPaying(true)
+    setLastRrr(null)
+    try {
+      const record = await startFeePaymentPlaceholder(profile.uid, {
+        session: identity.session || data.session || "",
+        level: identity.level || data.level || "",
+        amount: amountDue ?? 0,
+      })
+      setLastRrr(record.rrr)
+      setData((prev) => ({
+        ...prev,
+        paymentRecords: [record, ...prev.paymentRecords],
+        feeStatus: "Payment pending",
+      }))
+      toast.success("Payment initiated (placeholder). RRR generated.")
+      await refresh()
+    } catch (error) {
+      toast.error(getAuthErrorMessage(error))
+    } finally {
+      setPaying(false)
+    }
+  }
 
   return (
     <SidebarProvider>
@@ -45,28 +78,36 @@ function FeesDashboard() {
       <SidebarInset>
         <header className="flex h-16 shrink-0 items-center gap-2 border-b">
           <div className="flex items-center gap-2 px-3">
-            <TopBar />
+            <TopBar title="School fees" />
           </div>
         </header>
         <main className="grid gap-4 p-4 xl:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle className="flex gap-2">
-                <CreditCard />
-                Payment Due
+              <CardTitle className="flex flex-wrap items-center gap-2">
+                <CreditCard className="size-5" />
+                Payment due
                 {data.feeStatus && <Badge>{data.feeStatus}</Badge>}
               </CardTitle>
+              <CardDescription>
+                {identity.matricNumber
+                  ? `Matric ${identity.matricNumber}`
+                  : "Matric not assigned yet"}{" "}
+                · {identity.session || data.session || "Session —"} ·{" "}
+                {identity.level || data.level || "Level —"}
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex flex-col items-start gap-1 rounded-3xl bg-muted p-4">
-                <h1 className="text-3xl font-bold">
-                  {formatCurrency(data.feesDue)}
-                </h1>
-                <p className="mt-4">
-                  {data.session ?? "Session not provided"}
-                  <br />
-                  {data.level ?? "Level not provided"}
-                  {data.faculty ? ` · ${data.faculty}` : ""}
+                <p className="text-xs font-medium text-muted-foreground">
+                  Amount due
+                </p>
+                <h1 className="text-3xl font-bold">{formatCurrency(amountDue)}</h1>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {identity.facultyName || data.faculty || "Faculty —"}
+                  {(identity.departmentName || data.department)
+                    ? ` · ${identity.departmentName || data.department}`
+                    : ""}
                 </p>
               </div>
               {data.feeItems.length ? (
@@ -81,22 +122,59 @@ function FeesDashboard() {
                 ))
               ) : (
                 <p className="mt-6 text-sm text-muted-foreground">
-                  No fee breakdown is available in Firebase.
+                  No fee line items yet. Admin can set them on the student
+                  fees record.
                 </p>
               )}
             </CardContent>
-            <CardFooter>
-              <p className="text-sm text-muted-foreground">
-                Payment processing is not connected yet.
-              </p>
+            <CardFooter className="flex flex-col items-stretch gap-3">
+              <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
+                <ShieldAlert className="mt-0.5 size-4 shrink-0" />
+                <p>
+                  <strong>Payment placeholder.</strong> No live gateway yet
+                  (Remita / Paystack can be wired later). Tapping pay creates a{" "}
+                  <em>Pending</em> record with a mock RRR for testing the flow.
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="lg"
+                disabled={!canPay || paying}
+                onClick={() => void handlePayPlaceholder()}
+              >
+                {paying ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Starting payment…
+                  </>
+                ) : (
+                  <>
+                    <CreditCard className="size-4" />
+                    Pay school fees (placeholder)
+                  </>
+                )}
+              </Button>
+              {lastRrr && (
+                <p className="text-center font-mono text-sm text-muted-foreground">
+                  Mock RRR: {lastRrr}
+                </p>
+              )}
+              {!canPay && (
+                <p className="text-center text-xs text-muted-foreground">
+                  {data.feeStatus === "Paid"
+                    ? "Fees marked as paid."
+                    : "No amount due is set for this student yet."}
+                </p>
+              )}
             </CardFooter>
           </Card>
+
           <div className="grid content-start gap-4">
             <Card>
               <CardHeader>
-                <CardTitle>Payment History</CardTitle>
+                <CardTitle>Payment history</CardTitle>
                 <CardDescription>
-                  Fee transactions and their current status.
+                  Transactions from Firebase (including placeholder attempts).
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -114,7 +192,7 @@ function FeesDashboard() {
                     {data.paymentRecords.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={5} className="text-center">
-                          No payment records are available in Firebase.
+                          No payment records yet.
                         </TableCell>
                       </TableRow>
                     )}
@@ -123,7 +201,9 @@ function FeesDashboard() {
                         <TableCell>{record.session}</TableCell>
                         <TableCell>{record.level}</TableCell>
                         <TableCell>{record.date}</TableCell>
-                        <TableCell>{record.rrr}</TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {record.rrr}
+                        </TableCell>
                         <TableCell>
                           <Badge
                             variant={
@@ -140,33 +220,6 @@ function FeesDashboard() {
                   </TableBody>
                 </Table>
               </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Scholarships</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {data.scholarships.length ? (
-                  data.scholarships.map((scholarship) => (
-                    <div key={scholarship.title}>
-                      <h3 className="font-medium">{scholarship.title}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {scholarship.description}
-                      </p>
-                      <Badge variant="outline">{scholarship.status}</Badge>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No scholarship records are available in Firebase.
-                  </p>
-                )}
-              </CardContent>
-              <CardFooter>
-                <Button disabled>
-                  Scholarship applications are unavailable
-                </Button>
-              </CardFooter>
             </Card>
           </div>
         </main>

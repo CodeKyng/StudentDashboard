@@ -76,7 +76,7 @@ service cloud.firestore {
 
     match /dashboardData/{userId} {
       allow read: if isOwner(userId) || isOperator() || isLinkedParentOf(userId);
-      allow create, update: if isOperator();
+      allow create, update: if isOperator() || isOwner(userId);
       allow delete: if false;
     }
 
