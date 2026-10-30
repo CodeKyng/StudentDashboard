@@ -13,7 +13,10 @@ import { auth, db } from "@/lib/firebase"
 
 export const userRoles = ["Staff", "Student", "Admin", "Parent"] as const
 export type UserRole = (typeof userRoles)[number]
-export type SelfAssignableRole = Exclude<UserRole, "Admin">
+/** Roles available on the public /signup form. Parent is invite-only. */
+export type SelfAssignableRole = Exclude<UserRole, "Admin" | "Parent">
+/** Roles that can be written to a profile from the client (includes invite Parent signup). */
+export type ProfileWritableRole = Exclude<UserRole, "Admin">
 
 export interface UserProfile {
   uid: string
@@ -44,7 +47,7 @@ function isUserRole(role: unknown): role is UserRole {
 async function saveUserProfile(
   user: User,
   displayName: string,
-  role: SelfAssignableRole
+  role: ProfileWritableRole
 ): Promise<void> {
   await updateProfile(user, { displayName })
   await setDoc(doc(db, "users", user.uid), {
@@ -77,7 +80,7 @@ export async function registerWithEmail(
   email: string,
   password: string,
   displayName: string,
-  role: SelfAssignableRole
+  role: ProfileWritableRole
 ): Promise<User> {
   let user: User
 
@@ -89,15 +92,12 @@ export async function registerWithEmail(
     )
     user = credential.user
   } catch (error) {
-    // Do not attempt password recovery here — it turns email-already-in-use
-    // into "incorrect password" and confuses users.
     throw error
   }
 
   try {
     await saveUserProfile(user, displayName, role)
   } catch (profileError) {
-    // Best-effort cleanup so the user can retry signup with the same email.
     try {
       await deleteUser(user)
     } catch (cleanupError) {
@@ -114,14 +114,9 @@ export async function registerWithEmail(
   return user
 }
 
-/**
- * Complete profile for an Auth user that has no Firestore document yet.
- * Call this after a successful sign-in that raised IncompleteProfileError,
- * while the user is still signed in.
- */
 export async function completeIncompleteProfile(
   displayName: string,
-  role: SelfAssignableRole
+  role: ProfileWritableRole
 ): Promise<UserProfile> {
   const user = auth.currentUser
   if (!user || !user.email) {
@@ -175,7 +170,6 @@ export async function signInWithEmail(
 
   if (profile) return profile
 
-  // Keep the session so the UI can offer "complete profile" without another password entry.
   throw new IncompleteProfileError(user.uid, user.email ?? email)
 }
 
