@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { toast } from "sonner"
 import {
@@ -28,16 +28,40 @@ import {
 import { Input } from "@/components/ui/input"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { getAuthErrorMessage } from "@/lib/auth"
-import type { Course, DashboardCourse } from "@/lib/dashboard-data"
+import type { DashboardCourse } from "@/lib/dashboard-data"
+import {
+  listInstitutionCourses,
+  type InstitutionCourse,
+} from "@/lib/institution-data"
 import { saveRegisteredCourses } from "@/lib/student-data"
 import { cn } from "@/lib/utils"
 
 const MAX_UNITS = 18
 
+function GateItem({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <li
+      className={cn(
+        "flex items-center gap-2 rounded-lg border px-3 py-2",
+        ok ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-900/40" : "bg-muted/40"
+      )}
+    >
+      {ok ? (
+        <Check className="size-4 text-emerald-600" />
+      ) : (
+        <Lock className="size-4 text-muted-foreground" />
+      )}
+      <span className="text-sm">{label}</span>
+    </li>
+  )
+}
+
 function CourseRegistration() {
   const { data, identity, profile, setData, refresh } = useDashboardContext()
+  const [catalog, setCatalog] = useState<InstitutionCourse[]>([])
+  const [catalogLoading, setCatalogLoading] = useState(true)
   const [selected, setSelected] = useState<Set<string>>(() => {
-    return new Set(data.courses.map((c) => c.code))
+    return new Set(data.courses.map((c) => c.code.toUpperCase()))
   })
   const [query, setQuery] = useState("")
   const [saving, setSaving] = useState(false)
@@ -62,32 +86,52 @@ function CourseRegistration() {
   const levelLabel = identity.level || data.level || "—"
   const sessionLabel = identity.session || data.session || "—"
 
-  const catalog = useMemo(() => {
-    const all = data.courseCatalog ?? []
-    const deptName = (
-      identity.departmentName ||
-      data.department ||
-      ""
-    ).toLowerCase()
-    const deptId = (identity.departmentId || "").toLowerCase()
-    const scoped = all.filter((c) => {
-      const byName =
-        deptName &&
-        (c.departmentName?.toLowerCase() === deptName ||
-          c.department?.toLowerCase() === deptName)
-      const byId =
-        deptId &&
-        (c.department?.toLowerCase() === deptId ||
-          c.departmentName?.toLowerCase().includes(deptId))
-      return byName || byId
-    })
-    return scoped.length > 0 ? scoped : all
+  const loadCatalog = useCallback(async () => {
+    setCatalogLoading(true)
+    try {
+      const all = await listInstitutionCourses()
+      const deptName = (
+        identity.departmentName ||
+        data.department ||
+        ""
+      ).toLowerCase()
+      const deptId = (identity.departmentId || "").toLowerCase()
+      const level = (identity.level || data.level || "").toLowerCase()
+
+      let scoped = all.filter((c) => {
+        const byName =
+          deptName && c.departmentName?.toLowerCase() === deptName
+        const byId = deptId && c.departmentId?.toLowerCase() === deptId
+        return byName || byId
+      })
+      if (scoped.length === 0) scoped = all
+
+      if (level) {
+        const levelScoped = scoped.filter(
+          (c) => !c.level || c.level.toLowerCase() === level
+        )
+        if (levelScoped.length > 0) scoped = levelScoped
+      }
+
+      setCatalog(scoped)
+    } catch (error) {
+      toast.error(getAuthErrorMessage(error))
+      setCatalog([])
+    } finally {
+      setCatalogLoading(false)
+    }
   }, [
-    data.courseCatalog,
     data.department,
+    data.level,
     identity.departmentId,
     identity.departmentName,
+    identity.level,
   ])
+
+  useEffect(() => {
+    if (canRegister) void loadCatalog()
+    else setCatalogLoading(false)
+  }, [canRegister, loadCatalog])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -95,24 +139,27 @@ function CourseRegistration() {
     return catalog.filter(
       (c) =>
         c.code.toLowerCase().includes(q) ||
-        c.name.toLowerCase().includes(q) ||
+        c.title.toLowerCase().includes(q) ||
         c.description.toLowerCase().includes(q)
     )
   }, [catalog, query])
 
   const selectedUnits = useMemo(() => {
     return Array.from(selected).reduce((sum, code) => {
-      const course = catalog.find((c) => c.code === code)
+      const course = catalog.find(
+        (c) => c.code.toUpperCase() === code.toUpperCase()
+      )
       return sum + (course?.units || 0)
     }, 0)
   }, [selected, catalog])
 
   function toggle(code: string) {
     if (!canRegister) return
+    const key = code.toUpperCase()
     setSelected((prev) => {
       const next = new Set(prev)
-      if (next.has(code)) next.delete(code)
-      else next.add(code)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
       return next
     })
   }
@@ -131,19 +178,27 @@ function CourseRegistration() {
       return
     }
     const enrolled: DashboardCourse[] = Array.from(selected)
-      .map((code) => catalog.find((c) => c.code === code))
-      .filter((c): c is Course => Boolean(c))
+      .map((code) =>
+        catalog.find((c) => c.code.toUpperCase() === code.toUpperCase())
+      )
+      .filter((c): c is InstitutionCourse => Boolean(c))
       .map((c) => ({
         code: c.code,
-        title: c.name,
+        title: c.title,
         description: c.description,
         progress: 0,
       }))
+
     setSaving(true)
     try {
-      await saveRegisteredCourses(profile.uid, enrolled)
+      await saveRegisteredCourses(profile.uid, enrolled, {
+        displayName: profile.displayName,
+        email: profile.email,
+        matricNumber: identity.matricNumber,
+        institutionCourses: catalog,
+      })
       setData((prev) => ({ ...prev, courses: enrolled }))
-      toast.success("Course registration saved.")
+      toast.success("Courses registered. Lecturers for these courses can now see you.")
       await refresh()
     } catch (error) {
       toast.error(getAuthErrorMessage(error))
@@ -167,7 +222,7 @@ function CourseRegistration() {
             <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-1">
                 <p className="text-xs font-medium uppercase tracking-wide text-cyan-100">
-                  Student placement
+                  Self registration
                 </p>
                 <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
                   {profile.displayName}
@@ -236,9 +291,8 @@ function CourseRegistration() {
                 </div>
                 <CardTitle>Course catalog is locked</CardTitle>
                 <CardDescription className="text-base">
-                  You can only view and register courses after an administrator
-                  assigns your matriculation number and faculty / department.
-                  This keeps registration tied to the correct programme.
+                  An administrator must assign your matriculation number and
+                  faculty / department before you can register courses yourself.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -247,10 +301,6 @@ function CourseRegistration() {
                   <GateItem ok={hasFaculty} label="Faculty" />
                   <GateItem ok={hasDepartment} label="Department" />
                 </ul>
-                <p className="text-sm text-muted-foreground">
-                  Contact your faculty office or wait until admin updates your
-                  record under Students.
-                </p>
                 <Button variant="outline" asChild>
                   <Link to="/dashboard">Back to dashboard</Link>
                 </Button>
@@ -264,9 +314,9 @@ function CourseRegistration() {
                   Placement complete — registration not opened
                 </CardTitle>
                 <CardDescription>
-                  Your matric and department are set, but an administrator has
-                  not marked you registration eligible for this session yet. The
-                  catalog stays hidden until then.
+                  Your matric and department are set. An administrator must mark
+                  you registration eligible for this session before the catalog
+                  opens.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -279,8 +329,13 @@ function CourseRegistration() {
                       Available courses
                     </h2>
                     <p className="text-sm text-muted-foreground">
-                      Showing catalog for {departmentLabel}
-                      {catalog.length === 0 ? " — no courses loaded yet" : ""}
+                      Select courses for {departmentLabel}. You register yourself
+                      — admin does not enroll you.
+                      {catalogLoading
+                        ? " Loading catalog…"
+                        : catalog.length === 0
+                          ? " No courses published yet."
+                          : ""}
                     </p>
                   </div>
                   <div className="relative w-full sm:max-w-xs">
@@ -294,20 +349,27 @@ function CourseRegistration() {
                   </div>
                 </div>
 
-                {filtered.length === 0 ? (
+                {catalogLoading ? (
+                  <Card className="border-dashed">
+                    <CardContent className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+                      <Loader2 className="size-4 animate-spin" />
+                      Loading institution courses…
+                    </CardContent>
+                  </Card>
+                ) : filtered.length === 0 ? (
                   <Card className="border-dashed">
                     <CardContent className="py-10 text-center text-sm text-muted-foreground">
-                      No courses match. Admin may still need to publish the
-                      course catalog for your department.
+                      No courses match. Admin should publish courses under
+                      Structure → Courses for your department.
                     </CardContent>
                   </Card>
                 ) : (
                   <div className="grid gap-3 sm:grid-cols-2">
                     {filtered.map((course) => {
-                      const isOn = selected.has(course.code)
+                      const isOn = selected.has(course.code.toUpperCase())
                       return (
                         <button
-                          key={course.code}
+                          key={course.id || course.code}
                           type="button"
                           onClick={() => toggle(course.code)}
                           className={cn(
@@ -333,7 +395,7 @@ function CourseRegistration() {
                             </span>
                           </div>
                           <p className="mt-1 font-medium leading-snug">
-                            {course.name}
+                            {course.title}
                           </p>
                           <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                             {course.description || "No description"}
@@ -345,6 +407,11 @@ function CourseRegistration() {
                             {course.semester ? (
                               <Badge variant="secondary" className="text-xs">
                                 {course.semester}
+                              </Badge>
+                            ) : null}
+                            {course.level ? (
+                              <Badge variant="secondary" className="text-xs">
+                                Level {course.level}
                               </Badge>
                             ) : null}
                           </div>
@@ -407,7 +474,9 @@ function CourseRegistration() {
                         </li>
                       )}
                       {Array.from(selected).map((code) => {
-                        const c = catalog.find((x) => x.code === code)
+                        const c = catalog.find(
+                          (x) => x.code.toUpperCase() === code
+                        )
                         return (
                           <li
                             key={code}
@@ -467,26 +536,6 @@ function CourseRegistration() {
         </main>
       </SidebarInset>
     </SidebarProvider>
-  )
-}
-
-function GateItem({ ok, label }: { ok: boolean; label: string }) {
-  return (
-    <li
-      className={cn(
-        "flex items-center gap-2 rounded-lg border px-3 py-2",
-        ok
-          ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-100"
-          : "border-border bg-muted/40 text-muted-foreground"
-      )}
-    >
-      {ok ? (
-        <Check className="size-4 shrink-0 text-emerald-600" />
-      ) : (
-        <Lock className="size-4 shrink-0" />
-      )}
-      {label}
-    </li>
   )
 }
 
