@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 
 import { SideBar } from "@/components/layout/SideBar"
@@ -16,6 +17,11 @@ import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import {
+  listAnnouncements,
+  type InstitutionAnnouncement,
+} from "@/lib/announcements"
+import { isSchoolFeesPaid } from "@/lib/student-data"
+import {
   ArrowRight,
   BookOpen,
   Calendar,
@@ -27,6 +33,24 @@ import {
 
 function StudentDashboard() {
   const { data, identity } = useDashboardContext()
+  const [announcements, setAnnouncements] = useState<InstitutionAnnouncement[]>(
+    []
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    void listAnnouncements()
+      .then((list) => {
+        if (!cancelled) setAnnouncements(list.slice(0, 5))
+      })
+      .catch(() => {
+        /* keep empty; page still usable */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const formatCurrency = (amount: number | undefined) =>
     amount === undefined
       ? "Not provided"
@@ -65,6 +89,7 @@ function StudentDashboard() {
       (identity.facultyName || data.faculty) &&
       (identity.departmentName || data.department)
   )
+  const feesPaid = isSchoolFeesPaid(data)
 
   return (
     <SidebarProvider>
@@ -208,10 +233,10 @@ function StudentDashboard() {
                         Wait until admin assigns your matric, faculty, and
                         department, then open Course registration.
                       </p>
-                    ) : data.registrationEligible !== true ? (
+                    ) : !feesPaid ? (
                       <p>
-                        Placement is set. Registration opens when admin marks
-                        you eligible for this session.
+                        Placement is set. Pay school fees to unlock course
+                        registration.
                       </p>
                     ) : (
                       <Button asChild>
@@ -288,18 +313,18 @@ function StudentDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {data.announcements.length ? (
-                data.announcements.map((announcement) => (
+              {announcements.length ? (
+                announcements.map((announcement) => (
                   <div key={announcement.id} className="mb-4">
                     <p className="font-bold">{announcement.title}</p>
-                    <p className="text-muted-foreground">
+                    <p className="text-muted-foreground line-clamp-2">
                       {announcement.description}
                     </p>
                   </div>
                 ))
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  No announcements are available in Firebase.
+                  No campus announcements yet.
                 </p>
               )}
             </CardContent>
@@ -326,7 +351,7 @@ function StudentDashboard() {
                 ))
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  No events are available in Firebase.
+                  No events are available yet.
                 </p>
               )}
             </CardContent>
