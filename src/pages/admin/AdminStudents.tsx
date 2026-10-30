@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
-import { IdCard, Pencil, RefreshCw, Search } from "lucide-react"
+import { IdCard, Pencil, RefreshCw, Search, Shield } from "lucide-react"
 import { toast } from "sonner"
 
 import { useAdminRecord } from "@/components/admin/admin-context"
+import { useDashboardContext } from "@/components/Auth/dashboard-context"
 import { getAuthErrorMessage } from "@/lib/auth"
 import {
   assignStudentIdentity,
+  assignUserRole,
+  assignableRoles,
   listDepartments,
   listFaculties,
   listStudentsWithMatric,
+  type AssignableRole,
   type Department,
   type Faculty,
   type StudentDirectoryEntry,
@@ -44,6 +48,9 @@ import {
 
 export default function AdminStudents() {
   const { selectStudent, refreshDirectory } = useAdminRecord()
+  const { profile } = useDashboardContext()
+  const isAdmin = profile.role === "Admin"
+
   const [students, setStudents] = useState<StudentDirectoryEntry[]>([])
   const [faculties, setFaculties] = useState<Faculty[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
@@ -52,7 +59,12 @@ export default function AdminStudents() {
   const [query, setQuery] = useState("")
   const [roleFilter, setRoleFilter] = useState("Student")
   const [open, setOpen] = useState(false)
+  const [roleOpen, setRoleOpen] = useState(false)
   const [editing, setEditing] = useState<StudentDirectoryEntry | null>(null)
+  const [roleTarget, setRoleTarget] = useState<StudentDirectoryEntry | null>(
+    null
+  )
+  const [nextRole, setNextRole] = useState<AssignableRole>("Student")
   const [matric, setMatric] = useState("")
   const [facultyId, setFacultyId] = useState("")
   const [departmentId, setDepartmentId] = useState("")
@@ -110,6 +122,21 @@ export default function AdminStudents() {
     setOpen(true)
   }
 
+  function openRole(student: StudentDirectoryEntry) {
+    if (student.role === "Parent") {
+      toast.error("Parent accounts are invite-only and cannot be reassigned here.")
+      return
+    }
+    setRoleTarget(student)
+    const current = assignableRoles.includes(
+      student.role as AssignableRole
+    )
+      ? (student.role as AssignableRole)
+      : "Student"
+    setNextRole(current)
+    setRoleOpen(true)
+  }
+
   function onFacultyPick(id: string) {
     setFacultyId(id)
     const first = departments.find((d) => d.facultyId === id)
@@ -145,6 +172,27 @@ export default function AdminStudents() {
     }
   }
 
+  async function handleRoleSave() {
+    if (!roleTarget) return
+    if (roleTarget.uid === profile.uid && nextRole !== "Admin") {
+      toast.error("You cannot remove your own Admin role from this screen.")
+      return
+    }
+    setSaving(true)
+    try {
+      await assignUserRole(roleTarget.uid, nextRole)
+      toast.success(
+        `${roleTarget.displayName} is now ${nextRole}. They may need to sign in again.`
+      )
+      setRoleOpen(false)
+      await load()
+    } catch (error) {
+      toast.error(getAuthErrorMessage(error))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const withoutMatric = students.filter(
     (s) => s.role === "Student" && !s.matricNumber
   ).length
@@ -156,7 +204,10 @@ export default function AdminStudents() {
           <h1 className="text-2xl font-bold tracking-tight">Students</h1>
           <p className="text-sm text-muted-foreground">
             Assign matric numbers and place students in faculties and departments.
-            Then open a record to edit academics and fees.
+            {isAdmin
+              ? " Admins can also promote accounts to Staff or Admin."
+              : ""}{" "}
+            Parent accounts stay invite-only.
           </p>
         </div>
         <Button type="button" variant="outline" onClick={() => void load()} disabled={loading}>
@@ -198,7 +249,7 @@ export default function AdminStudents() {
               Directory & matric assignment
             </CardTitle>
             <CardDescription>
-              Search by name, email, or matric. Assign numbers and academic placement.
+              Search by name, email, or matric. Assign numbers, placement, and roles.
             </CardDescription>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -236,7 +287,7 @@ export default function AdminStudents() {
                   <TableHead>Matric</TableHead>
                   <TableHead>Department</TableHead>
                   <TableHead>Level</TableHead>
-                  <TableHead className="w-44">Actions</TableHead>
+                  <TableHead className="w-52">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -276,6 +327,17 @@ export default function AdminStudents() {
                           <Button type="button" size="sm" variant="secondary" onClick={() => openAssign(user)}>
                             <Pencil className="size-3.5" />
                             Matric
+                          </Button>
+                        )}
+                        {isAdmin && user.role !== "Parent" && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openRole(user)}
+                          >
+                            <Shield className="size-3.5" />
+                            Role
                           </Button>
                         )}
                         <Button
@@ -363,6 +425,47 @@ export default function AdminStudents() {
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button type="button" disabled={saving} onClick={() => void handleSave()}>
               {saving ? "Saving…" : "Save assignment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={roleOpen} onOpenChange={setRoleOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Assign role</DialogTitle>
+            <DialogDescription>
+              {roleTarget
+                ? `${roleTarget.displayName} · ${roleTarget.email}`
+                : "User"}
+              . Parent remains invite-only and is not listed here.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 py-2">
+            <Label htmlFor="assign-role">Role</Label>
+            <select
+              id="assign-role"
+              className="h-9 rounded-lg border border-input bg-background px-3 text-sm"
+              value={nextRole}
+              onChange={(e) => setNextRole(e.target.value as AssignableRole)}
+            >
+              {assignableRoles.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Student → student portal. Staff → staff portal. Admin → full
+              administration.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setRoleOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" disabled={saving} onClick={() => void handleRoleSave()}>
+              {saving ? "Saving…" : "Save role"}
             </Button>
           </DialogFooter>
         </DialogContent>
