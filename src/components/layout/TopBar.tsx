@@ -99,20 +99,19 @@ function TopBar({ title }: { title?: string }) {
   }
 
   return (
-    <nav className="flex w-full items-center justify-between gap-3 px-2 py-1 sm:gap-4">
-      <div className="flex min-w-0 items-center gap-2">
+    <nav className="flex w-full min-w-0 items-center justify-between gap-3 px-3 py-2 sm:px-4">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
         <SidebarTrigger />
         <div className="min-w-0 truncate text-base font-medium sm:text-lg">
           {title || `Welcome, ${profile.displayName}`}
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-        <div className="mr-1 hidden rounded-xl border bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground md:block">
+      <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+        <div className="mr-1 hidden rounded-xl border bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground lg:block">
           {date}
         </div>
 
-        {/* Search */}
         <DropdownMenu open={searchOpen} onOpenChange={setSearchOpen}>
           <DropdownMenuTrigger asChild>
             <Button
@@ -161,10 +160,14 @@ function TopBar({ title }: { title?: string }) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Notifications */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Notifications" className="relative">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Notifications"
+              className="relative"
+            >
               <Bell className="size-4" />
               {notices.length > 0 ? (
                 <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-cyan-500" />
@@ -199,10 +202,8 @@ function TopBar({ title }: { title?: string }) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Dark mode (shadcn-style) */}
         <ModeToggle />
 
-        {/* Settings */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" aria-label="Settings">
@@ -222,14 +223,20 @@ function TopBar({ title }: { title?: string }) {
             <DropdownMenuRadioGroup
               value={theme}
               onValueChange={(value) => {
-                if (value === "light" || value === "dark" || value === "system") {
+                if (
+                  value === "light" ||
+                  value === "dark" ||
+                  value === "system"
+                ) {
                   setTheme(value)
                 }
               }}
             >
               <DropdownMenuRadioItem value="light">Light</DropdownMenuRadioItem>
               <DropdownMenuRadioItem value="dark">Dark</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="system">System</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="system">
+                System
+              </DropdownMenuRadioItem>
             </DropdownMenuRadioGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => void handleLogout()}>
