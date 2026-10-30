@@ -28,6 +28,7 @@ import AdminProfile from "./pages/admin/AdminProfile"
 import AdminCourses from "./pages/admin/AdminCourses"
 import AdminFaculties from "./pages/admin/AdminFaculties"
 import AdminDepartments from "./pages/admin/AdminDepartments"
+import AdminStaffManager from "./pages/admin/AdminStaffManager"
 import AdminAttendance from "./pages/admin/AdminAttendance"
 import AdminExams from "./pages/admin/AdminExams"
 import AdminAssignments from "./pages/admin/AdminAssignments"
@@ -88,6 +89,7 @@ function App() {
               <Route path="faculties" element={<AdminFaculties />} />
               <Route path="departments" element={<AdminDepartments />} />
               <Route path="students" element={<AdminStudents />} />
+              <Route path="staff-manager" element={<AdminStaffManager />} />
               <Route path="profile" element={<AdminProfile />} />
               <Route path="courses" element={<AdminCourses />} />
               <Route path="attendance" element={<AdminAttendance />} />

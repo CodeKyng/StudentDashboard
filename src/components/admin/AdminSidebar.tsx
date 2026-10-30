@@ -1,6 +1,7 @@
 import {
   Award,
   BookOpen,
+  BookUser,
   Building,
   Building2,
   CalendarCheck,
@@ -72,6 +73,7 @@ const sections = [
     icon: Users,
     items: [
       { title: "Directory & matric", url: "/admin/students", icon: IdCard },
+      { title: "Staff manager", url: "/admin/staff-manager", icon: BookUser },
       { title: "Student profile", url: "/admin/profile", icon: ShieldCheck },
     ],
   },
@@ -127,6 +129,7 @@ export function AdminSidebar(props: React.ComponentProps<typeof Sidebar>) {
       "/admin/departments",
       "/admin/courses",
       "/admin/students",
+      "/admin/staff-manager",
     ]
     if (structure.includes(path) || !selectedUid) return path
     return `${path}?student=${encodeURIComponent(selectedUid)}`
