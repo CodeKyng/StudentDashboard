@@ -9,6 +9,12 @@ import {
 } from "@/lib/dashboard-data"
 import { db } from "@/lib/firebase"
 import { computeCgpa, withAutoGrades } from "@/lib/grades"
+import type { InstitutionCourse } from "@/lib/institution-data"
+import {
+  enrollStudentInCourse,
+  listCourseEnrollments,
+  removeCourseEnrollment,
+} from "@/lib/staff-assignments"
 
 /** Placement / identity fields stored on the users document by admin. */
 export interface StudentIdentity {
@@ -29,6 +35,10 @@ export interface StudentView {
 
 function asString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined
+}
+
+function courseKey(code: string) {
+  return code.trim().toUpperCase()
 }
 
 export async function getStudentIdentity(uid: string): Promise<StudentIdentity> {
@@ -69,21 +79,112 @@ export async function loadStudentView(
   return { profile, identity, data }
 }
 
+/**
+ * Student self-registration: saves courses on their dashboard and publishes
+ * courseEnrollments so staff teaching those courses can see the class list.
+ */
 export async function saveRegisteredCourses(
   uid: string,
-  courses: DashboardCourse[]
+  courses: DashboardCourse[],
+  meta?: {
+    displayName?: string
+    email?: string
+    matricNumber?: string
+    institutionCourses?: InstitutionCourse[]
+  }
 ): Promise<void> {
   const current = await getDashboardData(uid)
+  const catalog = meta?.institutionCourses ?? []
+
+  // Seed empty CA/exam + attendance rows for newly registered courses
+  let results = [...current.results]
+  let attendanceCourses = [...current.attendanceCourses]
+
+  for (const course of courses) {
+    const code = courseKey(course.code)
+    const inst = catalog.find((c) => courseKey(c.code) === code)
+    if (!results.some((r) => courseKey(r.code) === code)) {
+      results.push({
+        code: course.code,
+        course: course.title,
+        units: inst?.units || 3,
+        ca: 0,
+        exam: 0,
+        grade: "F",
+      })
+    }
+    if (!attendanceCourses.some((a) => courseKey(a.coursecode) === code)) {
+      attendanceCourses.push({
+        coursecode: course.code,
+        progress: 0,
+        percentage: 0,
+      })
+    }
+  }
+
+  // Drop score rows for courses the student unregistered (optional cleanup)
+  const registeredCodes = new Set(courses.map((c) => courseKey(c.code)))
+  results = results.filter((r) => registeredCodes.has(courseKey(r.code)))
+  attendanceCourses = attendanceCourses.filter((a) =>
+    registeredCodes.has(courseKey(a.coursecode))
+  )
+
+  const graded = withAutoGrades(results)
+
   await setDoc(
     doc(db, "dashboardData", uid),
     {
       ...current,
       courses,
+      results: graded,
+      attendanceCourses,
+      cgpa: computeCgpa(graded),
       updatedAt: serverTimestamp(),
       updatedBy: uid,
     },
     { merge: true }
   )
+
+  // Sync public enrollments used by staff rosters
+  const existing = await listCourseEnrollments()
+  const mine = existing.filter((e) => e.studentUid === uid)
+  const mineCodes = new Set(mine.map((e) => courseKey(e.courseCode)))
+  const nextCodes = new Set(courses.map((c) => courseKey(c.code)))
+
+  for (const e of mine) {
+    if (!nextCodes.has(courseKey(e.courseCode))) {
+      await removeCourseEnrollment(e.id)
+    }
+  }
+
+  for (const course of courses) {
+    const code = courseKey(course.code)
+    if (mineCodes.has(code) && nextCodes.has(code)) continue
+    const inst =
+      catalog.find((c) => courseKey(c.code) === code) ??
+      ({
+        id: code,
+        code: course.code,
+        title: course.title,
+        description: course.description || "",
+        units: 3,
+        level: "",
+        semester: "",
+        departmentId: "",
+        departmentName: "",
+        facultyId: "",
+        facultyName: "",
+        prerequisites: [],
+      } satisfies InstitutionCourse)
+
+    await enrollStudentInCourse({
+      studentUid: uid,
+      studentName: meta?.displayName || "Student",
+      studentEmail: meta?.email || "",
+      matricNumber: meta?.matricNumber,
+      course: inst,
+    })
+  }
 }
 
 export async function startFeePaymentPlaceholder(

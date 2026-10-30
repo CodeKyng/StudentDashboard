@@ -107,18 +107,26 @@ service cloud.firestore {
       allow create, update, delete: if isOperator();
     }
 
-    // Admin assigns courses to staff; staff can read their own assignments.
     match /staffAssignments/{assignmentId} {
       allow read: if isOperator()
         || (signedIn() && resource.data.staffUid == request.auth.uid);
       allow create, update, delete: if isAdmin();
     }
 
-    // Students enrolled on a course; operators manage; staff/students can read.
+    // Students enroll themselves when registering courses; staff/admin can read.
     match /courseEnrollments/{enrollmentId} {
       allow read: if isOperator()
         || (signedIn() && resource.data.studentUid == request.auth.uid);
-      allow create, update, delete: if isOperator();
+      allow create, update: if isOperator()
+        || (
+          isStudent()
+          && request.resource.data.studentUid == request.auth.uid
+        );
+      allow delete: if isOperator()
+        || (
+          isStudent()
+          && resource.data.studentUid == request.auth.uid
+        );
     }
 
     match /parentInvites/{inviteId} {
