@@ -1,8 +1,17 @@
 import { useCallback, useEffect, useState } from "react"
-import { Link } from "react-router-dom"
-import { GraduationCap, LogOut, Users } from "lucide-react"
+import { Link, useNavigate } from "react-router-dom"
+import {
+  Award,
+  BookOpen,
+  CalendarCheck,
+  Clock,
+  CreditCard,
+  FileText,
+  GraduationCap,
+  LogOut,
+  Users,
+} from "lucide-react"
 import { signOut } from "firebase/auth"
-import { useNavigate } from "react-router-dom"
 
 import { useDashboardContext } from "@/components/Auth/dashboard-context"
 import { Badge } from "@/components/ui/badge"
@@ -14,6 +23,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { getAuthErrorMessage } from "@/lib/auth"
 import { auth } from "@/lib/firebase"
 import {
@@ -21,6 +38,7 @@ import {
   type ParentLink,
 } from "@/lib/parent-invites"
 import { getDashboardData, type DashboardData } from "@/lib/dashboard-data"
+import { formatGpa } from "@/lib/grades"
 
 export default function ParentDashboard() {
   const { profile } = useDashboardContext()
@@ -29,6 +47,7 @@ export default function ParentDashboard() {
   const [snapshots, setSnapshots] = useState<
     Record<string, DashboardData | null>
   >({})
+  const [selectedUid, setSelectedUid] = useState("")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
@@ -49,6 +68,13 @@ export default function ParentDashboard() {
         })
       )
       setSnapshots(Object.fromEntries(entries))
+      if (children.length > 0) {
+        setSelectedUid((prev) =>
+          prev && children.some((c) => c.studentUid === prev)
+            ? prev
+            : children[0].studentUid
+        )
+      }
     } catch (err) {
       setError(getAuthErrorMessage(err))
     } finally {
@@ -62,8 +88,11 @@ export default function ParentDashboard() {
 
   async function handleLogout() {
     await signOut(auth)
-    navigate("/login", { replace: true })
+    navigate("/", { replace: true })
   }
+
+  const selectedLink = links.find((l) => l.studentUid === selectedUid)
+  const snap = selectedUid ? snapshots[selectedUid] : null
 
   return (
     <div className="min-h-svh bg-muted/20">
@@ -80,9 +109,14 @@ export default function ParentDashboard() {
           </div>
           <div className="flex items-center gap-2">
             <span className="hidden text-sm text-muted-foreground sm:inline">
-              {profile.displayName}
+              {profile.displayName} · {profile.email}
             </span>
-            <Button type="button" variant="outline" size="sm" onClick={() => void handleLogout()}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void handleLogout()}
+            >
               <LogOut className="size-4" />
               Log out
             </Button>
@@ -94,8 +128,8 @@ export default function ParentDashboard() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Your students</h1>
           <p className="text-sm text-muted-foreground">
-            You only see students who invited your email and whom you accepted.
-            Open another invite link to add more children to this same account.
+            Passwordless access via invite email. You only see students who
+            invited your email.
           </p>
         </div>
 
@@ -117,60 +151,293 @@ export default function ParentDashboard() {
                 No students linked yet
               </CardTitle>
               <CardDescription>
-                Ask your child to open Guardians in their student portal and
-                send an invite to {profile.email}. Use that link to connect —
-                do not use the public signup page.
+                Ask your child to open Guardians and send a sign-in link to{" "}
+                {profile.email}. Open that email link — no password required.
               </CardDescription>
             </CardHeader>
           </Card>
         )}
 
-        <div className="grid gap-4 md:grid-cols-2">
-          {links.map((link) => {
-            const snap = snapshots[link.studentUid]
-            return (
-              <Card key={link.id}>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <GraduationCap className="size-4" />
-                    {link.studentName}
-                  </CardTitle>
-                  <CardDescription>Linked via guardian invite</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                  {snap ? (
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant="secondary">
-                        CGPA: {snap.cgpa ?? "—"}
-                      </Badge>
-                      <Badge variant="secondary">
-                        Level: {snap.level ?? "—"}
-                      </Badge>
-                      <Badge variant="secondary">
-                        Session: {snap.session ?? "—"}
-                      </Badge>
-                      <Badge variant="secondary">
-                        Fees: {snap.feeStatus ?? "—"}
-                      </Badge>
-                      <Badge variant="secondary">
-                        Attendance: {snap.attendancePercentage ?? "—"}%
-                      </Badge>
+        {links.length > 1 && (
+          <div className="flex flex-wrap gap-2">
+            {links.map((link) => (
+              <Button
+                key={link.id}
+                type="button"
+                size="sm"
+                variant={selectedUid === link.studentUid ? "default" : "outline"}
+                onClick={() => setSelectedUid(link.studentUid)}
+              >
+                {link.studentName}
+              </Button>
+            ))}
+          </div>
+        )}
+
+        {selectedLink && (
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <GraduationCap className="size-4" />
+                  {selectedLink.studentName}
+                </CardTitle>
+                <CardDescription>Full academic snapshot</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {snap ? (
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">CGPA</p>
+                      <p className="text-2xl font-bold">{formatGpa(snap.cgpa)}</p>
                     </div>
-                  ) : (
-                    <p className="text-muted-foreground">
-                      Academic record not available yet (admin may still need
-                      to publish the student dashboard).
-                    </p>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    Department: {snap?.department ?? "—"} · Faculty:{" "}
-                    {snap?.faculty ?? "—"}
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Level / session</p>
+                      <p className="text-lg font-semibold">
+                        {snap.level ?? "—"} · {snap.session ?? "—"}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Attendance</p>
+                      <p className="text-2xl font-bold">
+                        {snap.attendancePercentage ?? "—"}%
+                      </p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Fees</p>
+                      <p className="text-lg font-semibold">
+                        {snap.feeStatus ?? "—"}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Academic record not published yet.
                   </p>
+                )}
+                {snap && (
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    {snap.department ?? "—"} · {snap.faculty ?? "—"} ·{" "}
+                    {snap.currentSemester ?? ""}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            {snap && snap.results.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Award className="size-4" />
+                    Results (CA & Exam)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Code</TableHead>
+                          <TableHead>Course</TableHead>
+                          <TableHead>Units</TableHead>
+                          <TableHead>CA</TableHead>
+                          <TableHead>Exam</TableHead>
+                          <TableHead>Grade</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {snap.results.map((r, i) => (
+                          <TableRow key={`${r.code}-${i}`}>
+                            <TableCell className="font-mono text-sm">
+                              {r.code}
+                            </TableCell>
+                            <TableCell>{r.course}</TableCell>
+                            <TableCell>{r.units}</TableCell>
+                            <TableCell>{r.ca}</TableCell>
+                            <TableCell>{r.exam}</TableCell>
+                            <TableCell>
+                              <Badge variant="secondary">{r.grade}</Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </CardContent>
               </Card>
-            )
-          })}
-        </div>
+            )}
+
+            {snap && snap.attendanceCourses.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <CalendarCheck className="size-4" />
+                    Attendance by course
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Course</TableHead>
+                          <TableHead>Progress</TableHead>
+                          <TableHead>%</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {snap.attendanceCourses.map((a, i) => (
+                          <TableRow key={`${a.coursecode}-${i}`}>
+                            <TableCell className="font-mono text-sm">
+                              {a.coursecode}
+                            </TableCell>
+                            <TableCell>{a.progress}</TableCell>
+                            <TableCell>{a.percentage}%</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {snap && snap.exams.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Clock className="size-4" />
+                    Exam schedule
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Course</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Time</TableHead>
+                          <TableHead>Hall</TableHead>
+                          <TableHead>Seat</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {snap.exams.map((e, i) => (
+                          <TableRow key={`${e.course}-${i}`}>
+                            <TableCell>{e.course}</TableCell>
+                            <TableCell>{e.date}</TableCell>
+                            <TableCell>{e.time}</TableCell>
+                            <TableCell>{e.hall}</TableCell>
+                            <TableCell>{e.seatNo}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {snap && snap.assignments.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <FileText className="size-4" />
+                    Assignments
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Course</TableHead>
+                          <TableHead>Title</TableHead>
+                          <TableHead>Due</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Score</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {snap.assignments.map((a, i) => (
+                          <TableRow key={`${a.title}-${i}`}>
+                            <TableCell>{a.course}</TableCell>
+                            <TableCell>{a.title}</TableCell>
+                            <TableCell>{a.dueDate}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{a.status}</Badge>
+                            </TableCell>
+                            <TableCell>{a.score}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {snap && snap.courses.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <BookOpen className="size-4" />
+                    Registered courses
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-wrap gap-2">
+                  {snap.courses.map((c, i) => (
+                    <Badge key={`${c.code}-${i}`} variant="secondary">
+                      {c.code} — {c.title}
+                    </Badge>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {snap && snap.paymentRecords.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <CreditCard className="size-4" />
+                    Fee payments
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Session</TableHead>
+                          <TableHead>Level</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>RRR</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {snap.paymentRecords.map((p, i) => (
+                          <TableRow key={`${p.rrr}-${i}`}>
+                            <TableCell>{p.session}</TableCell>
+                            <TableCell>{p.level}</TableCell>
+                            <TableCell>{p.date}</TableCell>
+                            <TableCell className="font-mono text-sm">
+                              {p.rrr}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{p.status}</Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
 
         <p className="text-center text-xs text-muted-foreground">
           <Link to="/" className="underline underline-offset-4">

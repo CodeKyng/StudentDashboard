@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react"
-import { Copy, Link2, Trash2, UserPlus } from "lucide-react"
+import { Copy, Link2, Mail, Trash2, UserPlus } from "lucide-react"
 import { toast } from "sonner"
 
 import { useDashboardContext } from "@/components/Auth/dashboard-context"
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/table"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { getAuthErrorMessage } from "@/lib/auth"
+import { sendParentMagicLink } from "@/lib/parent-auth"
 import {
   createParentInvite,
   inviteJoinUrl,
@@ -44,6 +45,7 @@ export default function GuardiansPage() {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [lastUrl, setLastUrl] = useState("")
+  const [lastEmail, setLastEmail] = useState("")
 
   const load = useCallback(async () => {
     if (profile.role !== "Student") {
@@ -73,20 +75,42 @@ export default function GuardiansPage() {
     event.preventDefault()
     setSending(true)
     setLastUrl("")
+    setLastEmail("")
     try {
       const { invite, joinUrl } = await createParentInvite({
         studentUid: profile.uid,
         studentName: profile.displayName,
         guardianEmail: email,
       })
+
+      // Passwordless: Firebase emails a sign-in link that opens the join URL
+      try {
+        await sendParentMagicLink(invite.guardianEmail, joinUrl)
+        toast.success(`Sign-in link emailed to ${invite.guardianEmail}`)
+      } catch (mailErr) {
+        // Invite still created — student can share the URL manually
+        toast.message(
+          `Invite created. Email send failed (${getAuthErrorMessage(mailErr)}). Copy the link below and share it.`
+        )
+      }
+
       setLastUrl(joinUrl)
+      setLastEmail(invite.guardianEmail)
       setEmail("")
-      toast.success(`Invite created for ${invite.guardianEmail}`)
       await load()
     } catch (err) {
       toast.error(getAuthErrorMessage(err))
     } finally {
       setSending(false)
+    }
+  }
+
+  async function resendMagic(invite: ParentInvite) {
+    try {
+      await sendParentMagicLink(invite.guardianEmail, inviteJoinUrl(invite.id))
+      toast.success(`Sign-in link resent to ${invite.guardianEmail}`)
+    } catch (err) {
+      toast.error(getAuthErrorMessage(err))
     }
   }
 
@@ -132,11 +156,9 @@ export default function GuardiansPage() {
               Parent / guardian invites
             </h1>
             <p className="text-sm text-muted-foreground">
-              Parents cannot sign up freely. Enter their email, copy the invite
-              link, and send it (WhatsApp, SMS, email). When they open the link
-              they create a parent account or sign in — and are linked only to
-              you. The same parent can accept invites from multiple students
-              without a second account.
+              Enter a guardian email. We send them a passwordless sign-in link
+              (no account password). When they open the email link they see your
+              academic details only.
             </p>
           </div>
 
@@ -147,7 +169,7 @@ export default function GuardiansPage() {
                 Invite a guardian
               </CardTitle>
               <CardDescription>
-                Link is valid for 14 days and locked to this email address.
+                Passwordless email link · valid 14 days · locked to this email.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -167,13 +189,14 @@ export default function GuardiansPage() {
                   />
                 </div>
                 <Button type="submit" disabled={sending}>
-                  {sending ? "Creating…" : "Create invite link"}
+                  <Mail className="size-4" />
+                  {sending ? "Sending…" : "Send sign-in link"}
                 </Button>
               </form>
               {lastUrl && (
                 <div className="mt-4 space-y-2 rounded-lg border bg-muted/40 p-3">
                   <p className="text-xs font-medium text-muted-foreground">
-                    Share this link with the guardian
+                    Email sent to {lastEmail}. Backup link (optional share):
                   </p>
                   <p className="break-all font-mono text-sm">{lastUrl}</p>
                   <Button
@@ -243,7 +266,7 @@ export default function GuardiansPage() {
                         <TableHead>Email</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Expires</TableHead>
-                        <TableHead className="w-40">Actions</TableHead>
+                        <TableHead className="w-48">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -278,6 +301,15 @@ export default function GuardiansPage() {
                                     type="button"
                                     size="sm"
                                     variant="secondary"
+                                    onClick={() => void resendMagic(inv)}
+                                  >
+                                    <Mail className="size-3.5" />
+                                    Resend
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
                                     onClick={() =>
                                       void copyUrl(inviteJoinUrl(inv.id))
                                     }
@@ -286,8 +318,7 @@ export default function GuardiansPage() {
                                     Copy
                                   </Button>
                                   <Button
-                                    type="button"
-                                    size="icon"
+                                    type="button"\tableofcontents type="icon"
                                     variant="ghost"
                                     aria-label="Revoke"
                                     onClick={() => void handleRevoke(inv.id)}
