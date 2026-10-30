@@ -50,8 +50,6 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isOwner(userId) || isOperator();
 
-      // Public signup: Student only. Parent create remains via invite flow
-      // (same create rule historically allowed Staff/Student/Parent; Staff self-signup removed).
       allow create: if signedIn()
         && request.auth.uid == userId
         && request.resource.data.keys().hasAll([
@@ -73,8 +71,6 @@ service cloud.firestore {
         && request.resource.data.role in ['Student', 'Parent']
         && request.resource.data.createdAt == request.time;
 
-      // Operators may update identity fields (matric, faculty, etc.) without changing role.
-      // Admins may also set role to Student / Staff / Admin (never Parent).
       allow update: if isOperator()
         && request.resource.data.uid == resource.data.uid
         && request.resource.data.email == resource.data.email
@@ -108,6 +104,20 @@ service cloud.firestore {
 
     match /courses/{courseId} {
       allow read: if signedIn();
+      allow create, update, delete: if isOperator();
+    }
+
+    // Admin assigns courses to staff; staff can read their own assignments.
+    match /staffAssignments/{assignmentId} {
+      allow read: if isOperator()
+        || (signedIn() && resource.data.staffUid == request.auth.uid);
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Students enrolled on a course; operators manage; staff/students can read.
+    match /courseEnrollments/{enrollmentId} {
+      allow read: if isOperator()
+        || (signedIn() && resource.data.studentUid == request.auth.uid);
       allow create, update, delete: if isOperator();
     }
 
