@@ -8,6 +8,9 @@ import Assignments from "./pages/assignments/Assignments"
 import AttendanceView from "./pages/attendance/AttendanceView"
 import LoginPage from "./pages/Auth/Login"
 import SignupPage from "./pages/Auth/Signup"
+import ParentJoinPage from "./pages/Auth/ParentJoin"
+import ParentDashboard from "./pages/parent/ParentDashboard"
+import GuardiansPage from "./pages/guardians/Guardians"
 import CourseRegistration from "./pages/courses/CourseRegistration"
 import Exams from "./pages/exams/Exams"
 import FeesDashboard from "./pages/fees/FeesDashboard"
@@ -42,6 +45,7 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/parent/join" element={<ParentJoinPage />} />
 
         <Route element={<RequireAuth />}>
           <Route path="/dashboard" element={<StudentDashboard />} />
@@ -56,6 +60,11 @@ function App() {
           <Route path="/hostel" element={<HostelAllocation />} />
           <Route path="/transcript" element={<TranscriptRequest />} />
           <Route path="/announcement" element={<Announcements />} />
+          <Route path="/guardians" element={<GuardiansPage />} />
+
+          <Route element={<RequireRole allow={["Parent"]} />}>
+            <Route path="/parent" element={<ParentDashboard />} />
+          </Route>
 
           <Route element={<RequireRole allow={["Admin", "Staff"]} />}>
             <Route path="/admin" element={<AdminShell />}>
