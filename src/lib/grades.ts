@@ -75,3 +75,29 @@ export function formatGpa(value: number | undefined): string {
   if (value === undefined) return "—"
   return value.toFixed(2)
 }
+
+/** UNIJOS-style degree class on the 5.0 scale. */
+export function classOfDegree(cgpa: number | undefined): string {
+  if (cgpa === undefined) return "Not available"
+  if (cgpa >= 4.5) return "First Class"
+  if (cgpa >= 3.5) return "Second Class Upper"
+  if (cgpa >= 2.4) return "Second Class Lower"
+  if (cgpa >= 1.5) return "Third Class"
+  return "Pass / Probation"
+}
+
+export function qualityPoints(results: SemesterResult[]): {
+  totalUnits: number
+  totalQualityPoints: number
+} {
+  const graded = withAutoGrades(results)
+  let totalUnits = 0
+  let totalQualityPoints = 0
+  for (const row of graded) {
+    const u = Number(row.units) || 0
+    if (u <= 0) continue
+    totalUnits += u
+    totalQualityPoints += gradeToPoint(row.grade) * u
+  }
+  return { totalUnits, totalQualityPoints }
+}

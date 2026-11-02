@@ -11,7 +11,7 @@ import {
   type SemesterResult,
 } from "@/lib/dashboard-data"
 import { db } from "@/lib/firebase"
-import { computeCgpa, withAutoGrades } from "@/lib/grades"
+import { computeCgpa, computeGpa, withAutoGrades } from "@/lib/grades"
 import {
   listInstitutionCourses,
   type InstitutionCourse,
@@ -49,6 +49,23 @@ function matchesCourse(code: string, rowCode: string | undefined): boolean {
   return courseKey(rowCode) === courseKey(code)
 }
 
+/** Recompute grades, semester GPA, and CGPA on a dashboard snapshot. */
+function withComputedAcademics(data: DashboardData): DashboardData {
+  const graded = withAutoGrades(data.results)
+  const semesterGpa = computeGpa(graded)
+  const cgpa = computeCgpa(graded)
+  return {
+    ...data,
+    results: graded,
+    semesterGpa,
+    previousCgpa:
+      data.cgpa !== undefined && cgpa !== undefined && data.cgpa !== cgpa
+        ? data.cgpa
+        : data.previousCgpa,
+    cgpa,
+  }
+}
+
 /**
  * Courses assigned to this staff member by Admin (Staff Manager).
  * Admins with no personal assignments still see the full catalog for support.
@@ -61,7 +78,6 @@ export async function listStaffCourses(
   if (assignments.length > 0) {
     return assignmentsAsCourses(assignments)
   }
-  // Admin without explicit assignments can browse the full catalog
   if (role === "Admin") {
     return listInstitutionCourses()
   }
@@ -79,8 +95,7 @@ export async function listStaffDirectory(): Promise<UserProfile[]> {
 }
 
 /**
- * Roster = students enrolled on the course (Admin Staff Manager),
- * merged with any existing scores/attendance on their dashboard.
+ * Roster = students who registered the course, merged with scores/attendance.
  */
 export async function loadCourseRoster(
   courseCode: string,
@@ -93,7 +108,6 @@ export async function loadCourseRoster(
   const students = await listStaffStudents()
   const byUid = new Map(students.map((s) => [s.uid, s]))
 
-  // Prefer official enrollments; fall back to dashboard scan if none yet
   const baseUids =
     enrollments.length > 0
       ? enrollments.map((e) => e.studentUid)
@@ -118,8 +132,6 @@ export async function loadCourseRoster(
           matchesCourse(code, a.coursecode)
         )
 
-        // If no enrollments collection yet, only include students who already
-        // have this course on their record.
         if (enrollments.length === 0 && !result && !attendance) return
 
         const units =
@@ -223,14 +235,15 @@ export async function ensureStudentOnCourse(
     })
   }
 
-  const graded = withAutoGrades(results)
-  await saveStudentDashboard(studentUid, {
-    ...data,
-    results: graded,
-    attendanceCourses,
-    courses,
-    cgpa: computeCgpa(graded),
-  })
+  await saveStudentDashboard(
+    studentUid,
+    withComputedAcademics({
+      ...data,
+      results,
+      attendanceCourses,
+      courses,
+    })
+  )
 }
 
 export async function saveAttendanceForCourse(
@@ -274,6 +287,10 @@ export async function saveAttendanceForCourse(
   )
 }
 
+/**
+ * Save CA + Exam for the course roster.
+ * Grades, semester GPA, and CGPA are recalculated automatically.
+ */
 export async function saveScoresForCourse(
   courseCode: string,
   courseTitle: string,
@@ -301,14 +318,66 @@ export async function saveScoresForCourse(
       if (idx >= 0) results[idx] = { ...results[idx], ...row }
       else results.push(row)
 
-      const graded = withAutoGrades(results)
-      await saveStudentDashboard(uid, {
-        ...data,
-        results: graded,
-        cgpa: computeCgpa(graded),
-      })
+      await saveStudentDashboard(
+        uid,
+        withComputedAcademics({
+          ...data,
+          results,
+          resultsPublished: false,
+        })
+      )
     })
   )
+}
+
+/**
+ * Publish results for a course: final grade pass + mark student results published
+ * so the Results page shows official GPA / CGPA.
+ */
+export async function publishCourseResults(
+  courseCode: string,
+  courseTitle: string,
+  studentUids: string[]
+): Promise<{ published: number }> {
+  const code = courseKey(courseCode)
+  let published = 0
+
+  await Promise.all(
+    studentUids.map(async (uid) => {
+      const data = await getDashboardData(uid)
+      const hasCourse = data.results.some((r) => matchesCourse(code, r.code))
+      if (!hasCourse) {
+        // Ensure a results row exists for the course title if roster had scores only in memory
+        data.results.push({
+          code: courseCode,
+          course: courseTitle,
+          units: 3,
+          ca: 0,
+          exam: 0,
+          grade: "F",
+        })
+      }
+
+      const publishedCourseCodes = Array.from(
+        new Set([
+          ...(data.publishedCourseCodes ?? []),
+          courseCode.trim().toUpperCase(),
+        ])
+      )
+
+      await saveStudentDashboard(
+        uid,
+        withComputedAcademics({
+          ...data,
+          publishedCourseCodes,
+          resultsPublished: true,
+        })
+      )
+      published += 1
+    })
+  )
+
+  return { published }
 }
 
 export async function saveAssignmentsForStudents(
