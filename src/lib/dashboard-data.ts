@@ -118,10 +118,13 @@ export interface DashboardData {
   currencyCode?: string
   cgpa?: number
   previousCgpa?: number
+  semesterGpa?: number
   attendancePercentage?: number
   warningPercentage?: number
   feeStatus?: string
   registrationEligible?: boolean
+  resultsPublished?: boolean
+  publishedCourseCodes?: string[]
   schoolFeeAmount?: number
   feesDue?: number
   feeItems: FeeItem[]
@@ -475,6 +478,19 @@ function parseDashboardData(value: unknown): DashboardData {
     )
   }
 
+  let publishedCourseCodes: string[] | undefined
+  if (value.publishedCourseCodes !== undefined) {
+    if (
+      !Array.isArray(value.publishedCourseCodes) ||
+      !value.publishedCourseCodes.every((c) => typeof c === "string")
+    ) {
+      throw new Error(
+        'Firebase dashboard data has an invalid "publishedCourseCodes" field.'
+      )
+    }
+    publishedCourseCodes = value.publishedCourseCodes as string[]
+  }
+
   return {
     currentSemester: optionalString(value, "currentSemester"),
     session: optionalString(value, "session"),
@@ -484,10 +500,13 @@ function parseDashboardData(value: unknown): DashboardData {
     currencyCode: optionalString(value, "currencyCode"),
     cgpa: optionalNumber(value, "cgpa"),
     previousCgpa: optionalNumber(value, "previousCgpa"),
+    semesterGpa: optionalNumber(value, "semesterGpa"),
     attendancePercentage: optionalNumber(value, "attendancePercentage"),
     warningPercentage: optionalNumber(value, "warningPercentage"),
     feeStatus: optionalString(value, "feeStatus"),
     registrationEligible: optionalBoolean(value, "registrationEligible"),
+    resultsPublished: optionalBoolean(value, "resultsPublished"),
+    publishedCourseCodes,
     schoolFeeAmount: optionalNumber(value, "schoolFeeAmount"),
     feesDue: optionalNumber(value, "feesDue"),
     feeItems,

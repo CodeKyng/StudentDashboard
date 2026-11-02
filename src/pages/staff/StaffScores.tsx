@@ -21,8 +21,11 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { getAuthErrorMessage } from "@/lib/auth"
-import { scoreToGrade } from "@/lib/grades"
-import { saveScoresForCourse } from "@/lib/staff-data"
+import { computeGpa, scoreToGrade } from "@/lib/grades"
+import {
+  publishCourseResults,
+  saveScoresForCourse,
+} from "@/lib/staff-data"
 
 interface DraftRow {
   uid: string
@@ -43,6 +46,7 @@ export default function StaffScores() {
   } = useStaff()
   const [draft, setDraft] = useState<DraftRow[]>([])
   const [saving, setSaving] = useState(false)
+  const [publishing, setPublishing] = useState(false)
   const [dirty, setDirty] = useState(false)
 
   useEffect(() => {
@@ -72,13 +76,35 @@ export default function StaffScores() {
 
   const title = selectedCourse?.title || selectedCourseCode
 
+  const preview = useMemo(
+    () =>
+      draft.map((r) => ({
+        ...r,
+        grade: scoreToGrade((Number(r.ca) || 0) + (Number(r.exam) || 0)),
+      })),
+    [draft]
+  )
+
+  const classGpa = useMemo(() => {
+    return computeGpa(
+      preview.map((r) => ({
+        code: selectedCourseCode || "",
+        course: title || "",
+        units: Number(r.units) || 0,
+        ca: Number(r.ca) || 0,
+        exam: Number(r.exam) || 0,
+        grade: r.grade,
+      }))
+    )
+  }, [preview, selectedCourseCode, title])
+
   async function handleSave() {
     if (!selectedCourseCode) return
     setSaving(true)
     try {
       await saveScoresForCourse(
         selectedCourseCode,
-        title,
+        title || selectedCourseCode,
         draft.map((r) => ({
           uid: r.uid,
           units: r.units,
@@ -86,7 +112,9 @@ export default function StaffScores() {
           exam: r.exam,
         }))
       )
-      toast.success("CA and exam scores saved. Grades and CGPA recalculated.")
+      toast.success(
+        "Scores saved. Grades, semester GPA, and CGPA recalculated for each student."
+      )
       setDirty(false)
       await refreshRoster()
     } catch (error) {
@@ -96,14 +124,52 @@ export default function StaffScores() {
     }
   }
 
-  const preview = useMemo(
-    () =>
-      draft.map((r) => ({
-        ...r,
-        grade: scoreToGrade((Number(r.ca) || 0) + (Number(r.exam) || 0)),
-      })),
-    [draft]
-  )
+  async function handlePublish() {
+    if (!selectedCourseCode) return
+    if (dirty) {
+      toast.error("Save scores first, then publish.")
+      return
+    }
+    if (draft.length === 0) {
+      toast.error("No students on this roster.")
+      return
+    }
+    if (
+      !window.confirm(
+        `Publish results for ${selectedCourseCode}? Students will see official grades, GPA, and CGPA on Results.`
+      )
+    ) {
+      return
+    }
+    setPublishing(true)
+    try {
+      // Ensure latest draft is on server before publish
+      await saveScoresForCourse(
+        selectedCourseCode,
+        title || selectedCourseCode,
+        draft.map((r) => ({
+          uid: r.uid,
+          units: r.units,
+          ca: r.ca,
+          exam: r.exam,
+        }))
+      )
+      const { published } = await publishCourseResults(
+        selectedCourseCode,
+        title || selectedCourseCode,
+        draft.map((r) => r.uid)
+      )
+      toast.success(
+        `Published for ${published} student${published === 1 ? "" : "s"}. GPA/CGPA are live.`
+      )
+      setDirty(false)
+      await refreshRoster()
+    } catch (error) {
+      toast.error(getAuthErrorMessage(error))
+    } finally {
+      setPublishing(false)
+    }
+  }
 
   if (!selectedCourseCode) {
     return (
@@ -126,23 +192,60 @@ export default function StaffScores() {
             <span className="font-medium text-foreground">
               {selectedCourse?.code} — {selectedCourse?.title}
             </span>
-            . Grade is calculated automatically (A≥70 … F&lt;40).
+            . Grade, GPA, and CGPA are calculated automatically (A≥70 … F&lt;40).
           </p>
         </div>
-        <Button
-          type="button"
-          disabled={!dirty || saving || draft.length === 0}
-          onClick={() => void handleSave()}
-        >
-          {saving ? "Saving…" : "Save scores"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!dirty || saving || draft.length === 0}
+            onClick={() => void handleSave()}
+          >
+            {saving ? "Saving…" : "Save scores"}
+          </Button>
+          <Button
+            type="button"
+            disabled={publishing || draft.length === 0}
+            onClick={() => void handlePublish()}
+          >
+            {publishing ? "Publishing…" : "Publish results"}
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Students on roster</CardDescription>
+            <CardTitle className="text-2xl">{draft.length}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Class GPA (preview)</CardDescription>
+            <CardTitle className="text-2xl">
+              {classGpa === undefined ? "—" : classGpa.toFixed(2)}
+            </CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Workflow</CardDescription>
+            <CardTitle className="text-base font-medium">
+              Save → Publish → Students see GPA/CGPA
+            </CardTitle>
+          </CardHeader>
+        </Card>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Score sheet</CardTitle>
           <CardDescription>
-            Writes to each student&apos;s results list and refreshes CGPA.
+            Saving writes CA/Exam, auto letter grade, semester GPA, and CGPA on
+            each student record. Publish marks results official for the Results
+            page.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -176,7 +279,7 @@ export default function StaffScores() {
                       colSpan={7}
                       className="text-center text-muted-foreground"
                     >
-                      Roster is empty. Add students from the Staff dashboard.
+                      No students registered for this course yet.
                     </TableCell>
                   </TableRow>
                 )}
@@ -231,7 +334,8 @@ export default function StaffScores() {
             </Table>
           </div>
           <p className="mt-3 text-xs text-muted-foreground">
-            Grade from total (CA+Exam): A≥70, B≥60, C≥50, D≥45, E≥40, else F.
+            Grade from total (CA+Exam): A≥70, B≥60, C≥50, D≥45, E≥40, else F ·
+            5.0 scale quality points used for GPA/CGPA.
           </p>
         </CardContent>
       </Card>
