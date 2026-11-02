@@ -8,7 +8,7 @@ import {
   type PaymentRecord,
 } from "@/lib/dashboard-data"
 import { db } from "@/lib/firebase"
-import { computeCgpa, withAutoGrades } from "@/lib/grades"
+import { computeCgpa, computeGpa, withAutoGrades } from "@/lib/grades"
 import type { InstitutionCourse } from "@/lib/institution-data"
 import {
   enrollStudentInCourse,
@@ -80,6 +80,7 @@ export async function loadStudentView(
   const data: DashboardData = {
     ...raw,
     results,
+    semesterGpa: computeGpa(results) ?? raw.semesterGpa,
     cgpa: computeCgpa(results) ?? raw.cgpa,
     faculty: identity.facultyName || raw.faculty,
     department: identity.departmentName || raw.department,
@@ -155,6 +156,7 @@ export async function saveRegisteredCourses(
       courses,
       results: graded,
       attendanceCourses,
+      semesterGpa: computeGpa(graded),
       cgpa: computeCgpa(graded),
       updatedAt: serverTimestamp(),
       updatedBy: uid,
