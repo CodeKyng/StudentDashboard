@@ -117,6 +117,16 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    match /transcriptRequests/{requestId} {
+      allow read: if isOperator()
+        || (signedIn() && resource.data.studentUid == request.auth.uid);
+      allow create: if isStudent()
+        && request.resource.data.studentUid == request.auth.uid
+        && request.resource.data.status == 'Pending';
+      allow update: if isOperator();
+      allow delete: if isAdmin();
+    }
+
     match /staffAssignments/{assignmentId} {
       allow read: if isOperator()
         || (signedIn() && resource.data.staffUid == request.auth.uid);
